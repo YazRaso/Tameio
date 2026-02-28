@@ -3,17 +3,7 @@ import { Button } from "@/components/ui/button";
 
 export default function Home() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
-      {/* Subtle background grid */}
-      <div
-        className="pointer-events-none fixed inset-0 opacity-[0.03]"
-        style={{
-          backgroundImage:
-            "linear-gradient(var(--color-primary) 1px, transparent 1px), linear-gradient(90deg, var(--color-primary) 1px, transparent 1px)",
-          backgroundSize: "64px 64px",
-        }}
-      />
-
+    <main className="min-h-screen flex flex-col items-center justify-center px-4">
       <div className="relative flex flex-col items-center gap-6 text-center">
         {/* Eyebrow badge */}
         <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-1.5 text-sm font-medium text-muted-foreground tracking-wide">
@@ -22,7 +12,15 @@ export default function Home() {
         </span>
 
         {/* Wordmark */}
-        <h1 className="text-8xl font-bold tracking-tight text-primary leading-none">
+        <h1
+          className="text-8xl font-bold tracking-tight leading-none"
+          style={{
+            background: "linear-gradient(160deg, #f9e97e 0%, #c8860a 22%, #f5d060 40%, #7a4a00 55%, #e8b84b 68%, #c8860a 80%, #f9e97e 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }}
+        >
           Tameio
         </h1>
 
@@ -36,11 +34,16 @@ export default function Home() {
         </p>
 
         {/* CTAs */}
-        <div className="flex gap-4 mt-4">
-          <Button asChild size="lg" className="px-8 text-base h-12">
+        <div className="flex gap-6 mt-6">
+          <Button asChild size="lg" className="px-14 text-lg h-16 rounded-xl font-semibold tracking-wide">
             <Link href="/deposit">Deposit</Link>
           </Button>
-          <Button asChild variant="outline" size="lg" className="px-8 text-base h-12">
+          <Button
+            asChild
+            variant="outline"
+            size="lg"
+            className="px-14 text-lg h-16 rounded-xl font-semibold tracking-wide"
+          >
             <Link href="/borrow">Borrow</Link>
           </Button>
         </div>

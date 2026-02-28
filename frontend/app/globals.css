@@ -52,30 +52,30 @@
   --radius: 0.5rem;
 
   /* Deep space background */
-  --background: oklch(0.09 0.016 265);
-  --foreground: oklch(0.96 0.004 265);
+  --background: oklch(0.07 0 0);
+  --foreground: oklch(0.96 0.004 240);
 
   /* Cards / surfaces */
-  --card: oklch(0.13 0.018 265);
-  --card-foreground: oklch(0.96 0.004 265);
-  --popover: oklch(0.13 0.018 265);
-  --popover-foreground: oklch(0.96 0.004 265);
+  --card: oklch(0.11 0 0);
+  --card-foreground: oklch(0.96 0.004 240);
+  --popover: oklch(0.11 0 0);
+  --popover-foreground: oklch(0.96 0.004 240);
 
-  /* Electric indigo primary */
-  --primary: oklch(0.65 0.22 255);
-  --primary-foreground: oklch(0.98 0 0);
+  /* Warm gold primary */
+  --primary: oklch(0.78 0.14 72);
+  --primary-foreground: oklch(0.07 0 0);
 
   /* Subtle secondary surface */
-  --secondary: oklch(0.18 0.022 265);
-  --secondary-foreground: oklch(0.88 0.008 265);
+  --secondary: oklch(0.17 0 0);
+  --secondary-foreground: oklch(0.88 0.006 72);
 
   /* Muted */
-  --muted: oklch(0.16 0.02 265);
-  --muted-foreground: oklch(0.58 0.012 265);
+  --muted: oklch(0.15 0 0);
+  --muted-foreground: oklch(0.52 0.008 72);
 
-  /* Accent (slightly brighter than secondary) */
-  --accent: oklch(0.2 0.03 255);
-  --accent-foreground: oklch(0.92 0.006 265);
+  /* Accent */
+  --accent: oklch(0.19 0.01 72);
+  --accent-foreground: oklch(0.92 0.006 72);
 
   /* Destructive */
   --destructive: oklch(0.65 0.21 22);
@@ -83,59 +83,59 @@
   /* Borders and inputs */
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.65 0.22 255);
+  --ring: oklch(0.78 0.14 72);
 
   /* Charts */
-  --chart-1: oklch(0.65 0.22 255);
-  --chart-2: oklch(0.72 0.17 195);
-  --chart-3: oklch(0.78 0.15 160);
-  --chart-4: oklch(0.62 0.23 290);
-  --chart-5: oklch(0.68 0.2 230);
+  --chart-1: oklch(0.78 0.14 72);
+  --chart-2: oklch(0.68 0.11 72);
+  --chart-3: oklch(0.58 0.09 72);
+  --chart-4: oklch(0.48 0.07 72);
+  --chart-5: oklch(0.88 0.1 72);
 
   /* Sidebar */
-  --sidebar: oklch(0.11 0.016 265);
-  --sidebar-foreground: oklch(0.96 0.004 265);
-  --sidebar-primary: oklch(0.65 0.22 255);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.18 0.022 265);
-  --sidebar-accent-foreground: oklch(0.88 0.008 265);
+  --sidebar: oklch(0.09 0 0);
+  --sidebar-foreground: oklch(0.96 0.004 72);
+  --sidebar-primary: oklch(0.78 0.14 72);
+  --sidebar-primary-foreground: oklch(0.07 0 0);
+  --sidebar-accent: oklch(0.17 0 0);
+  --sidebar-accent-foreground: oklch(0.88 0.006 72);
   --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: oklch(0.65 0.22 255);
+  --sidebar-ring: oklch(0.78 0.14 72);
 }
 
 /* Keep .dark as an alias since html has class="dark" */
 .dark {
-  --background: oklch(0.09 0.016 265);
-  --foreground: oklch(0.96 0.004 265);
-  --card: oklch(0.13 0.018 265);
-  --card-foreground: oklch(0.96 0.004 265);
-  --popover: oklch(0.13 0.018 265);
-  --popover-foreground: oklch(0.96 0.004 265);
-  --primary: oklch(0.65 0.22 255);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.18 0.022 265);
-  --secondary-foreground: oklch(0.88 0.008 265);
-  --muted: oklch(0.16 0.02 265);
-  --muted-foreground: oklch(0.58 0.012 265);
-  --accent: oklch(0.2 0.03 255);
-  --accent-foreground: oklch(0.92 0.006 265);
+  --background: oklch(0.07 0 0);
+  --foreground: oklch(0.96 0.004 72);
+  --card: oklch(0.11 0 0);
+  --card-foreground: oklch(0.96 0.004 72);
+  --popover: oklch(0.11 0 0);
+  --popover-foreground: oklch(0.96 0.004 72);
+  --primary: oklch(0.78 0.14 72);
+  --primary-foreground: oklch(0.07 0 0);
+  --secondary: oklch(0.17 0 0);
+  --secondary-foreground: oklch(0.88 0.006 72);
+  --muted: oklch(0.15 0 0);
+  --muted-foreground: oklch(0.52 0.008 72);
+  --accent: oklch(0.19 0.01 72);
+  --accent-foreground: oklch(0.92 0.006 72);
   --destructive: oklch(0.65 0.21 22);
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.65 0.22 255);
-  --chart-1: oklch(0.65 0.22 255);
-  --chart-2: oklch(0.72 0.17 195);
-  --chart-3: oklch(0.78 0.15 160);
-  --chart-4: oklch(0.62 0.23 290);
-  --chart-5: oklch(0.68 0.2 230);
-  --sidebar: oklch(0.11 0.016 265);
-  --sidebar-foreground: oklch(0.96 0.004 265);
-  --sidebar-primary: oklch(0.65 0.22 255);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.18 0.022 265);
-  --sidebar-accent-foreground: oklch(0.88 0.008 265);
+  --ring: oklch(0.78 0.14 72);
+  --chart-1: oklch(0.78 0.14 72);
+  --chart-2: oklch(0.68 0.11 72);
+  --chart-3: oklch(0.58 0.09 72);
+  --chart-4: oklch(0.48 0.07 72);
+  --chart-5: oklch(0.88 0.10 72);
+  --sidebar: oklch(0.09 0 0);
+  --sidebar-foreground: oklch(0.96 0.004 72);
+  --sidebar-primary: oklch(0.78 0.14 72);
+  --sidebar-primary-foreground: oklch(0.07 0 0);
+  --sidebar-accent: oklch(0.17 0 0);
+  --sidebar-accent-foreground: oklch(0.88 0.006 72);
   --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: oklch(0.65 0.22 255);
+  --sidebar-ring: oklch(0.78 0.14 72);
 }
 
 @layer base {
@@ -144,5 +144,77 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* ── Lava lamp keyframes ─────────────────────────────────────── */
+@keyframes lava-1 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  20% {
+    transform: translate(380px, -320px) scale(1.15);
+  }
+  50% {
+    transform: translate(-280px, 350px) scale(0.85);
+  }
+  75% {
+    transform: translate(420px, 260px) scale(1.1);
+  }
+}
+
+@keyframes lava-2 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(-450px, 300px) scale(1.12);
+  }
+  66% {
+    transform: translate(340px, -420px) scale(0.82);
+  }
+}
+
+@keyframes lava-3 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  20% {
+    transform: translate(360px, -400px) scale(1.18);
+  }
+  55% {
+    transform: translate(-400px, -300px) scale(0.88);
+  }
+  80% {
+    transform: translate(300px, 380px) scale(1.08);
+  }
+}
+
+@keyframes lava-4 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  40% {
+    transform: translate(-420px, 340px) scale(1.14);
+  }
+  70% {
+    transform: translate(390px, -360px) scale(0.86);
+  }
+}
+
+@keyframes lava-5 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  30% {
+    transform: translate(320px, 440px) scale(1.16);
+  }
+  65% {
+    transform: translate(-380px, 280px) scale(0.9);
   }
 }

@@ -44,14 +44,14 @@ export default function DepositPage() {
       const simulatedHash =
         "0x" +
         Array.from({ length: 64 }, () =>
-          Math.floor(Math.random() * 16).toString(16)
+          Math.floor(Math.random() * 16).toString(16),
         ).join("");
 
       setTxHash(simulatedHash);
       setDialogState("success");
     } catch (err: unknown) {
       setErrorMessage(
-        err instanceof Error ? err.message : "Transaction failed"
+        err instanceof Error ? err.message : "Transaction failed",
       );
       setDialogState("error");
     }
@@ -65,11 +65,10 @@ export default function DepositPage() {
     if (txHash) navigator.clipboard.writeText(txHash);
   }
 
-  const rateDisplay =
-    TODAYS_RATE !== null ? `${TODAYS_RATE}% APY` : "TBD";
+  const rateDisplay = TODAYS_RATE !== null ? `${TODAYS_RATE}% APY` : "TBD";
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
+    <main className="min-h-screen flex flex-col items-center justify-center px-4">
       {/* Back link */}
       <div className="absolute top-6 left-6">
         <Link
@@ -96,7 +95,15 @@ export default function DepositPage() {
           <span className="text-xs uppercase tracking-widest text-muted-foreground font-medium">
             Today&apos;s Rate
           </span>
-          <span className="ml-auto text-sm font-semibold text-primary">
+          <span
+            className="ml-auto text-sm font-semibold"
+            style={{
+              background: "linear-gradient(160deg, #f9e97e 0%, #c8860a 22%, #f5d060 40%, #7a4a00 55%, #e8b84b 68%, #c8860a 80%, #f9e97e 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}
+          >
             {rateDisplay}
           </span>
         </div>
@@ -123,7 +130,7 @@ export default function DepositPage() {
         </div>
 
         <Button
-          className="w-full"
+          className="w-full h-16 text-lg font-semibold tracking-wide rounded-xl"
           size="lg"
           onClick={openConfirm}
           disabled={!amount || Number(amount) <= 0}
@@ -151,10 +158,10 @@ export default function DepositPage() {
               </div>
 
               <DialogFooter className="gap-2 sm:gap-0">
-                <Button variant="ghost" onClick={handleReject}>
+                <Button variant="ghost" size="lg" className="h-12 px-8 text-base" onClick={handleReject}>
                   Reject
                 </Button>
-                <Button onClick={handleAccept}>Accept &amp; Sign</Button>
+                <Button size="lg" className="h-12 px-8 text-base" onClick={handleAccept}>Accept &amp; Sign</Button>
               </DialogFooter>
             </>
           )}
@@ -173,7 +180,14 @@ export default function DepositPage() {
           {dialogState === "success" && (
             <>
               <DialogHeader>
-                <DialogTitle className="text-primary">
+                <DialogTitle
+                  style={{
+                    background: "linear-gradient(160deg, #f9e97e 0%, #c8860a 22%, #f5d060 40%, #7a4a00 55%, #e8b84b 68%, #c8860a 80%, #f9e97e 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}
+                >
                   Deposit Confirmed
                 </DialogTitle>
                 <DialogDescription className="text-muted-foreground">
@@ -204,7 +218,13 @@ export default function DepositPage() {
                   href={`https://explorer.monad.xyz/tx/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block text-xs text-primary underline-offset-4 hover:underline"
+                  className="block text-xs underline-offset-4 hover:underline"
+                  style={{
+                    background: "linear-gradient(160deg, #f9e97e 0%, #c8860a 22%, #f5d060 40%, #7a4a00 55%, #e8b84b 68%, #c8860a 80%, #f9e97e 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}
                 >
                   View on Monad Explorer →
                 </a>
@@ -213,6 +233,8 @@ export default function DepositPage() {
               <DialogFooter>
                 <Button
                   variant="ghost"
+                  size="lg"
+                  className="h-12 px-8 text-base"
                   onClick={() => {
                     setDialogOpen(false);
                     setAmount("");
@@ -236,10 +258,10 @@ export default function DepositPage() {
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
-                <Button variant="ghost" onClick={() => setDialogOpen(false)}>
+                <Button variant="ghost" size="lg" className="h-12 px-8 text-base" onClick={() => setDialogOpen(false)}>
                   Close
                 </Button>
-                <Button onClick={() => setDialogState("confirm")}>
+                <Button size="lg" className="h-12 px-8 text-base" onClick={() => setDialogState("confirm")}>
                   Try Again
                 </Button>
               </DialogFooter>
