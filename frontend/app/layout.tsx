@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Providers } from "./providers";
+import { WalletWidget } from "@/components/wallet-widget";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -108,7 +110,10 @@ export default function RootLayout({
             }}
           />
         </div>
-        <div style={{ position: "relative", zIndex: 1 }}>{children}</div>
+        <Providers>
+          <WalletWidget />
+          <div style={{ position: "relative", zIndex: 1 }}>{children}</div>
+        </Providers>
       </body>
     </html>
   );

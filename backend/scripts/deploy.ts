@@ -8,7 +8,9 @@ async function main() {
   console.log("  Tameio – TameioVault Deployment");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`  Network      : ${(await ethers.provider.getNetwork()).name}`);
-  console.log(`  Chain ID     : ${(await ethers.provider.getNetwork()).chainId}`);
+  console.log(
+    `  Chain ID     : ${(await ethers.provider.getNetwork()).chainId}`,
+  );
   console.log(`  Deployer     : ${deployer.address}`);
   console.log(`  Balance      : ${ethers.formatEther(balance)} MON`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
@@ -16,7 +18,7 @@ async function main() {
   if (balance === 0n) {
     throw new Error(
       "Deployer account has no funds. " +
-        "Get testnet MON from the Monad faucet at https://faucet.monad.xyz"
+        "Get testnet MON from the Monad faucet at https://faucet.monad.xyz",
     );
   }
 
@@ -38,10 +40,10 @@ async function main() {
   console.log("  Explorer Links");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(
-    `  MonadScan  : https://testnet.monadscan.com/address/${contractAddress}`
+    `  MonadScan  : https://testnet.monadscan.com/address/${contractAddress}`,
   );
   console.log(
-    `  MonadVision: https://testnet.monadvision.com/address/${contractAddress}`
+    `  MonadVision: https://testnet.monadvision.com/address/${contractAddress}`,
   );
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
   console.log("✅ Deployment complete!");

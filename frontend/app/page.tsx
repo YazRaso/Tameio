@@ -5,6 +5,23 @@ export default function Home() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-4">
       <div className="relative flex flex-col items-center gap-6 text-center">
+        {/* Ambient glow behind wordmark */}
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: 520,
+            height: 200,
+            borderRadius: "50%",
+            background: "radial-gradient(ellipse, rgba(200,134,10,0.18) 0%, transparent 70%)",
+            filter: "blur(30px)",
+            pointerEvents: "none",
+            zIndex: -1,
+          }}
+        />
         {/* Eyebrow badge */}
         <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-1.5 text-sm font-medium text-muted-foreground tracking-wide">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />

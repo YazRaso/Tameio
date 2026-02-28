@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useDeposit, useTxStatus, useUnlink } from "@unlink-xyz/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,42 +18,74 @@ import {
 // Today's fixed deposit interest rate — to be filled in later
 const TODAYS_RATE: number | null = null;
 
+// TODO: Replace with the actual USDC token address on Monad testnet
+const USDC_TOKEN = process.env.NEXT_PUBLIC_USDC_ADDRESS ?? "0x0000000000000000000000000000000000000000";
+
 type DialogState = "confirm" | "loading" | "success" | "error";
 
 export default function DepositPage() {
+  const { activeAccount } = useUnlink();
+  const { deposit, isPending, isError: isDepositError, error: depositError, reset: resetDeposit } = useDeposit();
+
+  const [relayId, setRelayId] = useState<string | null>(null);
+  const { state: txState, txHash: chainTxHash } = useTxStatus(relayId ?? "");
+
   const [amount, setAmount] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogState, setDialogState] = useState<DialogState>("confirm");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Sync on-chain status → dialog state
+  useEffect(() => {
+    if (!relayId) return;
+    if (txState === "succeeded") {
+      setTxHash(chainTxHash ?? null);
+      setDialogState("success");
+    } else if (txState === "failed") {
+      setErrorMessage("Transaction failed on-chain");
+      setDialogState("error");
+    }
+  }, [txState, chainTxHash, relayId]);
+
+  // Surface deposit hook errors
+  useEffect(() => {
+    if (isDepositError && depositError) {
+      setErrorMessage((depositError as Error).message ?? "Deposit failed");
+      setDialogState("error");
+    }
+  }, [isDepositError, depositError]);
+
   function openConfirm() {
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return;
     setDialogState("confirm");
     setTxHash(null);
     setErrorMessage(null);
+    setRelayId(null);
     setDialogOpen(true);
   }
 
   async function handleAccept() {
+    if (!activeAccount) {
+      setErrorMessage("Wallet not connected. Please set up your Unlink wallet first.");
+      setDialogState("error");
+      return;
+    }
     setDialogState("loading");
+    resetDeposit();
     try {
-      // Simulate wallet transaction prompt & confirmation
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // TODO: Replace with actual wallet interaction (e.g. wagmi sendTransaction)
-      const simulatedHash =
-        "0x" +
-        Array.from({ length: 64 }, () =>
-          Math.floor(Math.random() * 16).toString(16),
-        ).join("");
-
-      setTxHash(simulatedHash);
-      setDialogState("success");
+      // USDC has 6 decimals
+      const amountBigInt = BigInt(Math.round(parseFloat(amount) * 1_000_000));
+      const result = await deposit([{
+        token: USDC_TOKEN,
+        amount: amountBigInt,
+        depositor: activeAccount.address as string,
+      }]);
+      if (result?.relayId) {
+        setRelayId(result.relayId);
+      }
     } catch (err: unknown) {
-      setErrorMessage(
-        err instanceof Error ? err.message : "Transaction failed",
-      );
+      setErrorMessage(err instanceof Error ? err.message : "Transaction failed");
       setDialogState("error");
     }
   }
@@ -66,9 +99,10 @@ export default function DepositPage() {
   }
 
   const rateDisplay = TODAYS_RATE !== null ? `${TODAYS_RATE}% APY` : "TBD";
+  const isProcessing = isPending || (!!relayId && dialogState === "loading");
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-4">
+    <main className="relative min-h-screen flex flex-col items-center justify-center px-4">
       {/* Back link */}
       <div className="absolute top-6 left-6">
         <Link
@@ -82,21 +116,21 @@ export default function DepositPage() {
       <div className="w-full max-w-md space-y-8">
         {/* Page header */}
         <div className="space-y-1">
-          <h2 className="text-3xl font-semibold tracking-tight text-foreground">
+          <h2 className="text-5xl font-semibold tracking-tight text-foreground">
             Deposit
           </h2>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-base">
             Lend USDC to Tameio and earn a fixed return.
           </p>
         </div>
 
         {/* Rate badge */}
         <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
-          <span className="text-xs uppercase tracking-widest text-muted-foreground font-medium">
+          <span className="text-sm uppercase tracking-widest text-muted-foreground font-medium">
             Today&apos;s Rate
           </span>
           <span
-            className="ml-auto text-sm font-semibold"
+            className="ml-auto text-base font-semibold"
             style={{
               background: "linear-gradient(160deg, #f9e97e 0%, #c8860a 22%, #f5d060 40%, #7a4a00 55%, #e8b84b 68%, #c8860a 80%, #f9e97e 100%)",
               WebkitBackgroundClip: "text",
@@ -110,7 +144,7 @@ export default function DepositPage() {
 
         {/* Amount input */}
         <div className="space-y-2">
-          <Label htmlFor="deposit-amount" className="text-sm text-foreground">
+          <Label htmlFor="deposit-amount" className="text-base text-foreground">
             Amount (USDC)
           </Label>
           <div className="relative">
@@ -123,7 +157,7 @@ export default function DepositPage() {
               onChange={(e) => setAmount(e.target.value)}
               className="pr-16 bg-card border-border text-foreground placeholder:text-muted-foreground"
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">
               USDC
             </span>
           </div>
@@ -161,7 +195,9 @@ export default function DepositPage() {
                 <Button variant="ghost" size="lg" className="h-12 px-8 text-base" onClick={handleReject}>
                   Reject
                 </Button>
-                <Button size="lg" className="h-12 px-8 text-base" onClick={handleAccept}>Accept &amp; Sign</Button>
+                <Button size="lg" className="h-12 px-8 text-base" onClick={handleAccept} disabled={isProcessing}>
+                  Accept &amp; Sign
+                </Button>
               </DialogFooter>
             </>
           )}
@@ -170,8 +206,8 @@ export default function DepositPage() {
           {dialogState === "loading" && (
             <div className="flex flex-col items-center gap-4 py-8">
               <Spinner />
-              <p className="text-sm text-muted-foreground">
-                Waiting for wallet confirmation…
+              <p className="text-base text-muted-foreground">
+                {isPending ? "Generating proof…" : "Waiting for on-chain confirmation…"}
               </p>
             </div>
           )}
@@ -198,7 +234,7 @@ export default function DepositPage() {
               <div className="space-y-3 py-2">
                 <Row label="Amount" value={`${amount} USDC`} />
                 <div className="space-y-1">
-                  <span className="text-xs text-muted-foreground uppercase tracking-wider">
+                  <span className="text-sm text-muted-foreground uppercase tracking-wider">
                     Transaction Hash
                   </span>
                   <div className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2">
@@ -218,7 +254,7 @@ export default function DepositPage() {
                   href={`https://explorer.monad.xyz/tx/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block text-xs underline-offset-4 hover:underline"
+                  className="block text-sm underline-offset-4 hover:underline"
                   style={{
                     background: "linear-gradient(160deg, #f9e97e 0%, #c8860a 22%, #f5d060 40%, #7a4a00 55%, #e8b84b 68%, #c8860a 80%, #f9e97e 100%)",
                     WebkitBackgroundClip: "text",
@@ -277,7 +313,7 @@ export default function DepositPage() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between text-sm">
+    <div className="flex items-center justify-between text-base">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium text-foreground">{value}</span>
     </div>
