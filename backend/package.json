@@ -1,0 +1,19 @@
+{
+  "name": "tameio-contracts",
+  "version": "1.0.0",
+  "description": "Tameio – Smart contracts for crypto lending & borrowing on Monad",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:testnet": "hardhat run scripts/deploy.ts --network monadTestnet",
+    "deploy:mainnet": "hardhat run scripts/deploy.ts --network monadMainnet"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "dotenv": "^16.4.5",
+    "hardhat": "^2.22.17",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3",
+    "@types/node": "^22.0.0"
+  }
+}
