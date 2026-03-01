@@ -12,7 +12,7 @@ import { ethers } from "hardhat";
 // ── Config ───────────────────────────────────────────────────────────────────
 const VAULT_ADDRESS = process.env.VAULT_ADDRESS ?? "0x332456394FE65bb3D6CC646B015ddc6D73876e80";
 const USDC_ADDRESS  = process.env.USDC_ADDRESS  ?? "0xc4fB617E4E4CfbdEb07216dFF62B4E46a2D6FdF6";
-const SEED_AMOUNT_USDC = 100; // USDC to deposit (human-readable)
+const SEED_AMOUNT_USDC = 500; // USDC to deposit (human-readable)
 
 // Minimal ERC-20 ABI
 const ERC20_ABI = [

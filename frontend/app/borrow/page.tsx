@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useWithdraw, useTxStatus, useUnlink } from "@unlink-xyz/react";
+import { useUnlink } from "@unlink-xyz/react";
 import { usePublicWallet } from "@/lib/public-wallet-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,19 +19,11 @@ import {
 // TODO: update port/base URL once the rate engine is deployed to a real host
 const RATE_ENGINE_URL = "http://localhost:8000";
 
-// Fail loudly at runtime if the env var is missing — sending to 0x000...000 is a burn address
-const USDC_TOKEN = process.env.NEXT_PUBLIC_USDC_ADDRESS as string;
-if (!USDC_TOKEN) throw new Error("NEXT_PUBLIC_USDC_ADDRESS is not set in .env.local");
-
 type DialogState = "confirm" | "loading" | "success" | "error";
 
 export default function BorrowPage() {
   const { activeAccount } = useUnlink();
   const { eoaAddress } = usePublicWallet();
-  const { withdraw, isPending, isError: isWithdrawError, error: withdrawError, reset: resetWithdraw } = useWithdraw();
-
-  const [relayId, setRelayId] = useState<string | null>(null);
-  const { state: txState, txHash: chainTxHash, error: txError } = useTxStatus(relayId);
 
   const [amount, setAmount] = useState("");
   const [duration, setDuration] = useState(""); // in days
@@ -41,6 +33,7 @@ export default function BorrowPage() {
   const [dialogState, setDialogState] = useState<DialogState>("confirm");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isFormValid =
     amount &&
@@ -49,26 +42,6 @@ export default function BorrowPage() {
     duration &&
     !isNaN(Number(duration)) &&
     Number(duration) > 0;
-
-  // Sync Unlink relay status → dialog state
-  useEffect(() => {
-    if (!relayId) return;
-    if (txState === "succeeded") {
-      setTxHash(chainTxHash ?? null);
-      setDialogState("success");
-    } else if (txState === "reverted" || txState === "failed" || txState === "dead") {
-      setErrorMessage(txError ?? `Transaction ${txState} on-chain`);
-      setDialogState("error");
-    }
-  }, [txState, chainTxHash, txError, relayId]);
-
-  // Surface withdraw hook errors
-  useEffect(() => {
-    if (isWithdrawError && withdrawError) {
-      setErrorMessage((withdrawError as Error).message ?? "Withdrawal failed");
-      setDialogState("error");
-    }
-  }, [isWithdrawError, withdrawError]);
 
   async function openConfirm() {
     if (!isFormValid) return;
@@ -95,7 +68,6 @@ export default function BorrowPage() {
     setDialogState("confirm");
     setTxHash(null);
     setErrorMessage(null);
-    setRelayId(null);
     setDialogOpen(true);
   }
 
@@ -111,21 +83,39 @@ export default function BorrowPage() {
       return;
     }
     setDialogState("loading");
-    resetWithdraw();
+    setIsSubmitting(true);
     try {
-      // USDCm on Monad testnet has 18 decimals (NOT 6 like mainnet USDC)
+      // USDCm on Monad testnet has 18 decimals — send as string to avoid JS BigInt serialization issues
       const amountBigInt = parseTokenAmount(amount, 18);
-      const result = await withdraw([{
-        token: USDC_TOKEN,
-        amount: amountBigInt,
-        recipient: eoaAddress,
-      }]);
-      if (result?.relayId) {
-        setRelayId(result.relayId);
+
+      // Backend calls releaseToBorrower(borrower, amount) on TameioVault using the owner key.
+      // useWithdraw cannot be used here — it only withdraws from the user's OWN Unlink pool
+      // balance, which a borrower does not have. The vault pushes funds outward via the backend.
+      const res = await fetch(`${RATE_ENGINE_URL}/borrow`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          borrower: eoaAddress,
+          amount: amountBigInt.toString(), // string avoids Number precision loss on 18-decimal values
+          duration_days: parseInt(duration, 10),
+        }),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(errBody.detail ?? "Loan request failed");
       }
+
+      const data = await res.json();
+      setTxHash(data.tx_hash);
+      // Use the rate the backend actually approved (may differ slightly from quote)
+      if (typeof data.interest_rate_pct === "number") setQuoteRate(data.interest_rate_pct);
+      setDialogState("success");
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : "Transaction failed");
       setDialogState("error");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -138,7 +128,7 @@ export default function BorrowPage() {
   }
 
   const rateDisplay = quoteRate !== null ? `${quoteRate.toFixed(2)}% APR` : "—";
-  const isProcessing = isPending || (!!relayId && dialogState === "loading");
+  const isProcessing = isSubmitting || dialogState === "loading";
 
   return (
     <main className="relative min-h-screen flex flex-col items-center justify-center px-4">
@@ -251,7 +241,7 @@ export default function BorrowPage() {
             <div className="flex flex-col items-center gap-4 py-8">
               <Spinner />
               <p className="text-base text-muted-foreground">
-                {isPending ? "Generating proof…" : "Waiting for on-chain confirmation…"}
+                Processing loan… waiting for on-chain confirmation
               </p>
             </div>
           )}

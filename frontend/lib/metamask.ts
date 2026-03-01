@@ -85,3 +85,29 @@ export async function switchToMonad(provider: EthereumProvider): Promise<void> {
     }
   }
 }
+
+/**
+ * Registers USDCm as a watched token in MetaMask so its balance appears
+ * in the wallet's token list. Safe to call multiple times — MetaMask is a no-op
+ * if the token is already tracked.
+ */
+export async function watchUSDCToken(provider: EthereumProvider): Promise<void> {
+  const address = process.env.NEXT_PUBLIC_USDC_ADDRESS;
+  if (!address) return;
+  try {
+    await provider.request({
+      method: "wallet_watchAsset",
+      params: {
+        type: "ERC20",
+        options: {
+          address,
+          symbol: "USDCm",
+          decimals: 18,
+          // No image URL needed — MetaMask will show a generic token icon
+        },
+      } as unknown as unknown[],
+    });
+  } catch {
+    // Non-fatal — user may have dismissed the prompt; balance tracking is optional
+  }
+}

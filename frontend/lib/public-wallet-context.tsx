@@ -7,7 +7,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import { getMetaMask } from "@/lib/metamask";
+import { getMetaMask, watchUSDCToken } from "@/lib/metamask";
 
 interface PublicWalletContextValue {
   eoaAddress: string | null;
@@ -65,7 +65,11 @@ export function PublicWalletProvider({
     try {
       const accounts = await provider.request({ method: "eth_requestAccounts" });
       const list = accounts as string[];
-      if (list.length > 0) setEoaAddress(list[0]);
+      if (list.length > 0) {
+        setEoaAddress(list[0]);
+        // Register USDCm as a watched token so its balance shows in MetaMask
+        watchUSDCToken(provider);
+      }
     } catch (err) {
       console.error("Wallet connection rejected:", err);
     } finally {

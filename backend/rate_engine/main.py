@@ -77,7 +77,7 @@ class RateResponse(BaseModel):
 
 class BorrowRequest(BaseModel):
     borrower: str = Field(description="Borrower's EOA address (0x…)")
-    amount: int = Field(description="Loan amount in USDC base units (6 decimals), e.g. 1000000 = 1 USDC")
+    amount: str = Field(description="Loan amount in USDCm base units (18 decimals) as a string, e.g. '1000000000000000000' = 1 USDCm")
     duration_days: int = Field(description="Loan duration in days")
 
 
@@ -150,7 +150,11 @@ def execute_borrow(req: BorrowRequest):
 
     The vault must hold sufficient USDC before this endpoint is called.
     """
-    if req.amount <= 0:
+    try:
+        amount_int = int(req.amount)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="amount must be a valid integer string")
+    if amount_int <= 0:
         raise HTTPException(status_code=400, detail="amount must be > 0")
 
     # ── Rate calculation ──────────────────────────────────────────────────
@@ -171,13 +175,26 @@ def execute_borrow(req: BorrowRequest):
 
     try:
         nonce = w3.eth.get_transaction_count(owner_account.address)
+
+        # Estimate gas with a 60% buffer to cover cold storage slots on Monad.
+        # releaseToBorrower writes to a new borrowerDebt[borrower] slot on first call
+        # (22,100 gas cold SSTORE) plus the onlyOwner modifier's cold SLOAD — this
+        # pushes past 120k. We estimate then pad rather than hardcode.
+        try:
+            estimated = vault.functions.releaseToBorrower(
+                borrower_checksum, amount_int
+            ).estimate_gas({"from": owner_account.address})
+            gas_limit = int(estimated * 1.6)
+        except Exception:
+            gas_limit = 400_000  # safe fallback if estimation itself fails
+
         tx = vault.functions.releaseToBorrower(
             borrower_checksum,
-            req.amount,
+            amount_int,
         ).build_transaction({
             "from": owner_account.address,
             "nonce": nonce,
-            "gas": 120_000,
+            "gas": gas_limit,
             "gasPrice": w3.eth.gas_price,
             "chainId": 10143,  # Monad Testnet
         })
@@ -194,5 +211,5 @@ def execute_borrow(req: BorrowRequest):
         tx_hash=tx_hash.hex(),
         interest_rate_pct=rate,
         fico_score=score,
-        message=f"Loan of {req.amount / 1_000_000:.2f} USDC disbursed at {rate:.2f}% APR.",
+        message=f"Loan of {amount_int / 10**18:.4f} USDCm disbursed at {rate:.2f}% APR.",
     )

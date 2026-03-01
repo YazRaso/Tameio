@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useDeposit, useUnlink } from "@unlink-xyz/react";
 import { usePublicWallet } from "@/lib/public-wallet-context";
-import { getMetaMask, switchToMonad, waitForReceipt } from "@/lib/metamask";
+import { getMetaMask, switchToMonad, waitForReceipt, watchUSDCToken } from "@/lib/metamask";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -120,6 +120,8 @@ export default function DepositPage() {
 
       setTxHash(hash);
       setDialogState("success");
+      // Prompt MetaMask to track USDCm balance (no-op if already watching)
+      watchUSDCToken(provider);
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : "Transaction failed");
       setDialogState("error");

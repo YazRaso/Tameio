@@ -65,6 +65,41 @@
 			"label": "Seed vault",
 			"type": "shell",
 			"command": "cd backend && npx hardhat run scripts/seed.ts --network monadTestnet"
+		},
+		{
+			"label": "Seed vault 500",
+			"type": "shell",
+			"command": "cd backend && npx hardhat run scripts/seed.ts --network monadTestnet"
+		},
+		{
+			"label": "Diagnose reverts",
+			"type": "shell",
+			"command": "cd backend/rate_engine && source .venv/bin/activate && python3 /tmp/diag.py"
+		},
+		{
+			"label": "Diag vault usdc",
+			"type": "shell",
+			"command": "cd backend/rate_engine && source .venv/bin/activate && python3 /tmp/diag2.py"
+		},
+		{
+			"label": "Test real tx",
+			"type": "shell",
+			"command": "cd backend/rate_engine && source .venv/bin/activate && python3 /tmp/test_tx.py"
+		},
+		{
+			"label": "Test transfer types",
+			"type": "shell",
+			"command": "cd backend/rate_engine && source .venv/bin/activate && python3 /tmp/test_transfer.py"
+		},
+		{
+			"label": "Retest release",
+			"type": "shell",
+			"command": "cd backend/rate_engine && source .venv/bin/activate && python3 /tmp/test_release2.py"
+		},
+		{
+			"label": "Verify main.py",
+			"type": "shell",
+			"command": "cd backend/rate_engine && source .venv/bin/activate && python3 -c \"import main; print('main.py syntax OK')\""
 		}
 	]
 }

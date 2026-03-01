@@ -41,7 +41,7 @@ export default function LandingPage() {
           className="relative rounded-2xl p-10 sm:p-14 overflow-hidden transition-transform duration-300 hover:-translate-y-1.5"
           style={{
             background: "oklch(0.11 0 0)",
-            border: "1px solid oklch(0.78 0.14 72 / 0.25)",
+            border: "1px solid oklch(0.78 0.14 72 / 0.45)",
           }}
         >
           {/* Subtle ambient glow in the card */}
@@ -103,7 +103,7 @@ export default function LandingPage() {
             className="rounded-2xl p-8 flex flex-col gap-4 transition-transform duration-300 hover:-translate-y-1.5"
             style={{
               background: "oklch(0.11 0 0)",
-              border: "1px solid oklch(0.78 0.14 72 / 0.25)",
+              border: "1px solid oklch(0.78 0.14 72 / 0.45)",
             }}
           >
             <span
