@@ -20,8 +20,9 @@ import {
 // Today's fixed deposit interest rate
 const TODAYS_RATE: number = 2;
 
-// TODO: Replace with the actual USDC token address on Monad testnet
-const USDC_TOKEN = process.env.NEXT_PUBLIC_USDC_ADDRESS ?? "0x0000000000000000000000000000000000000000";
+// Fail loudly at runtime if the env var is missing — sending to 0x000...000 is a burn address
+const USDC_TOKEN = process.env.NEXT_PUBLIC_USDC_ADDRESS as string;
+if (!USDC_TOKEN) throw new Error("NEXT_PUBLIC_USDC_ADDRESS is not set in .env.local");
 
 type DialogState = "confirm" | "loading" | "success" | "error";
 
@@ -66,10 +67,10 @@ export default function DepositPage() {
     setDialogState("loading");
     resetDeposit();
     try {
-      // USDC has 6 decimals
-      const amountBigInt = BigInt(Math.round(parseFloat(amount) * 1_000_000));
+      // USDCm on Monad testnet has 18 decimals (NOT 6 like mainnet USDC)
+      const amountBigInt = parseTokenAmount(amount, 18);
 
-      // Step 1: Ask the Unlink relay to prepare the deposit
+      // Step 1: Ask the Unlink relay to prepare the deposit transaction
       const result = await deposit([{
         token: USDC_TOKEN,
         amount: amountBigInt,
@@ -78,14 +79,30 @@ export default function DepositPage() {
 
       if (!result) throw new Error("Deposit preparation failed — no result returned.");
 
-      // Step 2: Submit the on-chain transaction via the user's wallet (MetaMask)
-      // deposit() returns {to, calldata, value} — the user must sign and broadcast it
       const provider = getMetaMask();
       if (!provider) throw new Error("MetaMask not found. Please install MetaMask.");
 
       // Ensure we're on Monad Testnet before sending
       await switchToMonad(provider);
 
+      // Step 2: Approve the Unlink pool contract to spend the user's USDC.
+      // The deposit calldata calls transferFrom internally — without prior approval it always reverts.
+      const approveData = buildApproveCalldata(result.to, amountBigInt);
+      const approveHash = await provider.request({
+        method: "eth_sendTransaction",
+        params: [{
+          from: eoaAddress,
+          to: USDC_TOKEN,
+          data: approveData,
+        }],
+      }) as string;
+
+      const approveReceipt = await waitForReceipt(provider, approveHash);
+      if (approveReceipt.status === "0x0") {
+        throw new Error("USDC approval was reverted on-chain. Please try again.");
+      }
+
+      // Step 3: Submit the Unlink deposit transaction
       const hash = await provider.request({
         method: "eth_sendTransaction",
         params: [{
@@ -96,11 +113,9 @@ export default function DepositPage() {
         }],
       }) as string;
 
-      // Poll for the receipt — the relay doesn't submit this tx, so we
-      // must check on-chain status ourselves via eth_getTransactionReceipt
       const receipt = await waitForReceipt(provider, hash);
       if (receipt.status === "0x0") {
-        throw new Error("Transaction was reverted on-chain.");
+        throw new Error("Deposit transaction was reverted on-chain.");
       }
 
       setTxHash(hash);
@@ -345,4 +360,29 @@ function Spinner() {
   return (
     <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-primary" />
   );
+}
+
+// ── Token amount helpers ─────────────────────────────────────────────────────
+
+/**
+ * Parse a human-readable decimal string into a BigInt with `decimals` precision.
+ * Avoids float arithmetic — "1.5" with decimals=18 → 1_500_000_000_000_000_000n
+ */
+function parseTokenAmount(value: string, decimals: number): bigint {
+  const [whole = "0", frac = ""] = value.split(".");
+  const fracPadded = frac.slice(0, decimals).padEnd(decimals, "0");
+  // Build 10^decimals as a string to avoid BigInt literal / ** operator (requires ES2020+)
+  const multiplier = BigInt("1" + "0".repeat(decimals));
+  return BigInt(whole) * multiplier + BigInt(fracPadded);
+}
+
+/**
+ * ABI-encode an ERC-20 approve(address,uint256) call without ethers.
+ * selector = keccak256("approve(address,uint256)")[0:4] = 0x095ea7b3
+ */
+function buildApproveCalldata(spender: string, amount: bigint): string {
+  const sel = "095ea7b3";
+  const addr = spender.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
+  const amt = amount.toString(16).padStart(64, "0");
+  return `0x${sel}${addr}${amt}`;
 }

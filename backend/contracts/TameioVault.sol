@@ -7,13 +7,14 @@ pragma solidity ^0.8.28;
  *
  * @dev    Two core flows mirror the platform architecture:
  *
- *         LENDING  → Users call `deposit()` to lend MON to the platform.
+ *         LENDING  → Users call `deposit(uint256)` to lend USDC to the platform.
  *                    Their balance is tracked; they can reclaim it via
  *                    `withdrawLenderFunds()` at any time (subject to liquidity).
+ *                    Requires prior ERC-20 approval of this contract.
  *
  *         BORROWING → After the off-chain risk engine approves a borrow request,
  *                    the Tameio backend calls `releaseToBorrower()` to push
- *                    funds to the borrower's wallet. The borrower's outstanding
+ *                    USDC to the borrower's wallet. The borrower's outstanding
  *                    debt is tracked on-chain.
  *
  * Monad-specific design notes
@@ -27,15 +28,26 @@ pragma solidity ^0.8.28;
  * • Max contract size is 128 KB on Monad (vs 24.5 KB on Ethereum) – plenty
  *   of headroom for future feature additions.
  */
+
+/// @dev Minimal ERC-20 interface – only the methods TameioVault needs.
+interface IERC20 {
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    function transfer(address to, uint256 amount) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
+}
+
 contract TameioVault {
     // ── State ──────────────────────────────────────────────────────────────
 
     address public owner;
 
-    /// @notice Amount each lender has deposited and not yet withdrawn.
+    /// @notice The USDC token contract this vault operates with.
+    IERC20 public immutable usdc;
+
+    /// @notice Amount each lender has deposited and not yet withdrawn (in USDC, 6 decimals).
     mapping(address => uint256) public lenderDeposits;
 
-    /// @notice Outstanding (un-repaid) borrow balance per borrower.
+    /// @notice Outstanding (un-repaid) borrow balance per borrower (in USDC, 6 decimals).
     mapping(address => uint256) public borrowerDebt;
 
     /// @notice Sum of all active lender deposits.
@@ -60,46 +72,56 @@ contract TameioVault {
 
     // ── Constructor ────────────────────────────────────────────────────────
 
-    constructor() {
+    /// @param _usdc Address of the USDC ERC-20 token on this network.
+    constructor(address _usdc) {
+        require(_usdc != address(0), "TameioVault: zero USDC address");
         owner = msg.sender;
+        usdc = IERC20(_usdc);
         emit OwnershipTransferred(address(0), msg.sender);
     }
 
     // ── Lending ────────────────────────────────────────────────────────────
 
     /**
-     * @notice Deposit MON into the vault (lenders use this).
-     * @dev    Emits {Deposited}. Caches storage slot once to keep gas low
-     *         given Monad's elevated cold-storage costs.
+     * @notice Deposit USDC into the vault (lenders use this).
+     * @dev    Caller must have approved this contract for at least `amount` USDC
+     *         before calling. Emits {Deposited}. Caches storage slot once to
+     *         keep gas low given Monad's elevated cold-storage costs.
+     * @param  amount Amount of USDC to deposit (6-decimal units).
      */
-    function deposit() external payable {
-        require(msg.value > 0, "TameioVault: deposit must be > 0");
+    function deposit(uint256 amount) external {
+        require(amount > 0, "TameioVault: deposit must be > 0");
+
+        // Pull USDC from the caller – reverts if allowance or balance is insufficient.
+        require(
+            usdc.transferFrom(msg.sender, address(this), amount),
+            "TameioVault: USDC transferFrom failed"
+        );
 
         // Cache → compute → write-back: one SLOAD + one SSTORE per mapping slot.
         uint256 current = lenderDeposits[msg.sender];
-        lenderDeposits[msg.sender] = current + msg.value;
-        totalDeposited += msg.value;
+        lenderDeposits[msg.sender] = current + amount;
+        totalDeposited += amount;
 
-        emit Deposited(msg.sender, msg.value);
+        emit Deposited(msg.sender, amount);
     }
 
     /**
-     * @notice Lenders withdraw their own deposited funds.
-     * @param  amount Amount of MON to withdraw (in wei).
+     * @notice Lenders withdraw their own deposited USDC.
+     * @param  amount Amount of USDC to withdraw (6-decimal units).
      */
     function withdrawLenderFunds(uint256 amount) external {
         require(amount > 0, "TameioVault: amount must be > 0");
 
         uint256 balance = lenderDeposits[msg.sender]; // single SLOAD
         require(balance >= amount, "TameioVault: insufficient lender balance");
-        require(address(this).balance >= amount, "TameioVault: insufficient vault liquidity");
+        require(usdc.balanceOf(address(this)) >= amount, "TameioVault: insufficient vault liquidity");
 
-        // Write-back before external call to prevent re-entrancy
+        // Write-back before external call to prevent re-entrancy.
         lenderDeposits[msg.sender] = balance - amount;
         totalDeposited -= amount;
 
-        (bool ok, ) = payable(msg.sender).call{value: amount}("");
-        require(ok, "TameioVault: transfer failed");
+        require(usdc.transfer(msg.sender, amount), "TameioVault: USDC transfer failed");
 
         emit LenderWithdrew(msg.sender, amount);
     }
@@ -107,23 +129,22 @@ contract TameioVault {
     // ── Borrowing ──────────────────────────────────────────────────────────
 
     /**
-     * @notice Release funds to an approved borrower (only Tameio backend).
+     * @notice Release USDC to an approved borrower (only Tameio backend).
      * @dev    Called by the owner after the off-chain risk engine approves
      *         the borrow request. Emits {ReleasedToBorrower}.
      * @param  borrower Wallet address of the approved borrower.
-     * @param  amount   Amount of MON to send (in wei).
+     * @param  amount   Amount of USDC to send (6-decimal units).
      */
-    function releaseToBorrower(address payable borrower, uint256 amount) external onlyOwner {
+    function releaseToBorrower(address borrower, uint256 amount) external onlyOwner {
         require(borrower != address(0), "TameioVault: zero address");
         require(amount > 0, "TameioVault: amount must be > 0");
-        require(address(this).balance >= amount, "TameioVault: insufficient vault liquidity");
+        require(usdc.balanceOf(address(this)) >= amount, "TameioVault: insufficient vault liquidity");
 
-        // Track outstanding debt before the external call
+        // Track outstanding debt before the external call.
         borrowerDebt[borrower] += amount;
         totalBorrowed += amount;
 
-        (bool ok, ) = borrower.call{value: amount}("");
-        require(ok, "TameioVault: transfer to borrower failed");
+        require(usdc.transfer(borrower, amount), "TameioVault: USDC transfer to borrower failed");
 
         emit ReleasedToBorrower(borrower, amount);
     }
@@ -142,22 +163,9 @@ contract TameioVault {
     }
 
     /**
-     * @notice View the vault's current MON balance.
+     * @notice View the vault's current USDC balance.
      */
     function vaultBalance() external view returns (uint256) {
-        return address(this).balance;
-    }
-
-    // ── Fallback ───────────────────────────────────────────────────────────
-
-    /**
-     * @dev Plain MON transfers (e.g. from a wallet) are treated as deposits.
-     */
-    receive() external payable {
-        if (msg.value > 0) {
-            lenderDeposits[msg.sender] += msg.value;
-            totalDeposited += msg.value;
-            emit Deposited(msg.sender, msg.value);
-        }
+        return usdc.balanceOf(address(this));
     }
 }

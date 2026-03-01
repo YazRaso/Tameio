@@ -1,0 +1,70 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Check USDC vault balances",
+			"type": "shell",
+			"command": "cd backend/rate_engine && python3 /tmp/check_balances.py"
+		},
+		{
+			"label": "Install deps and check USDC balances",
+			"type": "shell",
+			"command": "cd backend/rate_engine && pip install python-dotenv web3 -q && python3 /tmp/check_balances.py"
+		},
+		{
+			"label": "Install deps and check USDC balances v2",
+			"type": "shell",
+			"command": "cd backend/rate_engine && python3 -m pip install python-dotenv web3 -q && python3 /tmp/check_balances.py"
+		},
+		{
+			"label": "Install deps and check USDC balances v3",
+			"type": "shell",
+			"command": "cd backend/rate_engine && python3 -m pip install python-dotenv web3 -q --break-system-packages && python3 /tmp/check_balances.py"
+		},
+		{
+			"label": "venv check balances",
+			"type": "shell",
+			"command": "cd backend/rate_engine && source .venv/bin/activate 2>/dev/null || python3 -m venv .venv && source .venv/bin/activate && pip install python-dotenv web3 -q && python3 /tmp/check_balances.py"
+		},
+		{
+			"label": "Seed TameioVault with USDC",
+			"type": "shell",
+			"command": "cd backend && npx hardhat run scripts/seed.ts --network monadTestnet"
+		},
+		{
+			"label": "TypeScript check borrow page",
+			"type": "shell",
+			"command": "cd frontend && npx tsc --noEmit 2>&1"
+		},
+		{
+			"label": "Deduplicate borrow page",
+			"type": "shell",
+			"command": "cd frontend && awk '/^function Row\\(\\{ label, value \\}.*/{found++} found==2{exit} {print}' app/borrow/page.tsx | head -n -1 > /tmp/borrow_fixed.tsx && wc -l /tmp/borrow_fixed.tsx && mv /tmp/borrow_fixed.tsx app/borrow/page.tsx"
+		},
+		{
+			"label": "Find duplicate lines",
+			"type": "shell",
+			"command": "cd frontend && grep -n 'function Row' app/borrow/page.tsx && grep -n 'function Spinner' app/borrow/page.tsx && wc -l app/borrow/page.tsx"
+		},
+		{
+			"label": "Truncate borrow page at line 375",
+			"type": "shell",
+			"command": "cd frontend && head -375 app/borrow/page.tsx > /tmp/borrow_clean.tsx && mv /tmp/borrow_clean.tsx app/borrow/page.tsx && wc -l app/borrow/page.tsx"
+		},
+		{
+			"label": "TypeScript check final",
+			"type": "shell",
+			"command": "cd frontend && npx tsc --noEmit 2>&1"
+		},
+		{
+			"label": "Check USDC decimals",
+			"type": "shell",
+			"command": "cd backend/rate_engine && source .venv/bin/activate && python3 -c \"\nimport os, json\nfrom pathlib import Path\nfrom dotenv import load_dotenv\nfrom web3 import Web3\nload_dotenv(Path('../.env'))\nw3 = Web3(Web3.HTTPProvider(os.environ['ENDPOINT_URL']))\nUSdc = '0xc4fB617E4E4CfbdEb07216dFF62B4E46a2D6FdF6'\nabi = [{\\\"inputs\\\":[],\\\"name\\\":\\\"decimals\\\",\\\"outputs\\\":[{\\\"type\\\":\\\"uint8\\\"}],\\\"stateMutability\\\":\\\"view\\\",\\\"type\\\":\\\"function\\\"}]\nusdc = w3.eth.contract(address=Web3.to_checksum_address(USDC), abi=abi)\nprint('USDC decimals:', usdc.functions.decimals().call())\n\""
+		},
+		{
+			"label": "Seed vault",
+			"type": "shell",
+			"command": "cd backend && npx hardhat run scripts/seed.ts --network monadTestnet"
+		}
+	]
+}

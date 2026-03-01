@@ -16,8 +16,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-// TODO: Replace with the actual USDC token address on Monad testnet
-const USDC_TOKEN = process.env.NEXT_PUBLIC_USDC_ADDRESS ?? "0x0000000000000000000000000000000000000000";
+// TODO: update port/base URL once the rate engine is deployed to a real host
+const RATE_ENGINE_URL = "http://localhost:8000";
+
+// Fail loudly at runtime if the env var is missing — sending to 0x000...000 is a burn address
+const USDC_TOKEN = process.env.NEXT_PUBLIC_USDC_ADDRESS as string;
+if (!USDC_TOKEN) throw new Error("NEXT_PUBLIC_USDC_ADDRESS is not set in .env.local");
 
 type DialogState = "confirm" | "loading" | "success" | "error";
 
@@ -46,8 +50,7 @@ export default function BorrowPage() {
     !isNaN(Number(duration)) &&
     Number(duration) > 0;
 
-  // Sync on-chain status → dialog state
-  // Terminal failure states: "reverted" | "failed" | "dead"
+  // Sync Unlink relay status → dialog state
   useEffect(() => {
     if (!relayId) return;
     if (txState === "succeeded") {
@@ -73,7 +76,8 @@ export default function BorrowPage() {
     setFetchingRate(true);
     let rate: number;
     try {
-      const res = await fetch("http://localhost:8000/rate");
+      // TODO: dummy value — replace RATE_ENGINE_URL with deployed host
+      const res = await fetch(`${RATE_ENGINE_URL}/rate`);
       if (!res.ok) throw new Error(`Rate engine error: ${res.status} ${res.statusText}`);
       const data = await res.json();
       rate = data.interest_rate_pct;
@@ -97,7 +101,7 @@ export default function BorrowPage() {
 
   async function handleAccept() {
     if (!eoaAddress) {
-      setErrorMessage("Wallet not connected. Please connect your MetaMask or Phantom wallet first.");
+      setErrorMessage("Wallet not connected. Please connect your MetaMask wallet first.");
       setDialogState("error");
       return;
     }
@@ -109,8 +113,8 @@ export default function BorrowPage() {
     setDialogState("loading");
     resetWithdraw();
     try {
-      // USDC has 6 decimals
-      const amountBigInt = BigInt(Math.round(parseFloat(amount) * 1_000_000));
+      // USDCm on Monad testnet has 18 decimals (NOT 6 like mainnet USDC)
+      const amountBigInt = parseTokenAmount(amount, 18);
       const result = await withdraw([{
         token: USDC_TOKEN,
         amount: amountBigInt,
@@ -133,7 +137,7 @@ export default function BorrowPage() {
     if (txHash) navigator.clipboard.writeText(txHash);
   }
 
-  const rateDisplay = quoteRate !== null ? `${quoteRate}% APR` : "—";
+  const rateDisplay = quoteRate !== null ? `${quoteRate.toFixed(2)}% APR` : "—";
   const isProcessing = isPending || (!!relayId && dialogState === "loading");
 
   return (
@@ -293,7 +297,7 @@ export default function BorrowPage() {
                 </div>
 
                 <a
-                  href={`https://monad-testnet.socialscan.io/tx/${txHash}`}
+                  href={`https://testnet.monadscan.com/tx/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block text-sm underline-offset-4 hover:underline"
@@ -368,4 +372,18 @@ function Spinner() {
   return (
     <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-primary" />
   );
+}
+
+// ── Token amount helpers ──────────────────────────────────────────────────────
+
+/**
+ * Parse a human-readable decimal string into a BigInt with `decimals` precision.
+ * Avoids float arithmetic — "1.5" with decimals=18 → 1_500_000_000_000_000_000n
+ */
+function parseTokenAmount(value: string, decimals: number): bigint {
+  const [whole = "0", frac = ""] = value.split(".");
+  const fracPadded = frac.slice(0, decimals).padEnd(decimals, "0");
+  // Build 10^decimals as a string to avoid BigInt literal / ** operator (requires ES2020+)
+  const multiplier = BigInt("1" + "0".repeat(decimals));
+  return BigInt(whole) * multiplier + BigInt(fracPadded);
 }

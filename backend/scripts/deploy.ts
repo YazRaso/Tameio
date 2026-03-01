@@ -23,9 +23,18 @@ async function main() {
   }
 
   // ── Deploy ───────────────────────────────────────────────────────────────
+  const usdcAddress = process.env.USDC_ADDRESS;
+  if (!usdcAddress) {
+    throw new Error(
+      "USDC_ADDRESS is not set in .env. " +
+        "Set it to the USDC ERC-20 contract address on Monad testnet.",
+    );
+  }
+
+  console.log(`  USDC Token   : ${usdcAddress}`);
   console.log("Deploying TameioVault…");
   const TameioVault = await ethers.getContractFactory("TameioVault");
-  const vault = await TameioVault.deploy();
+  const vault = await TameioVault.deploy(usdcAddress);
 
   // Grab the transaction hash immediately from the pending deployment tx
   const deployTx = vault.deploymentTransaction();
