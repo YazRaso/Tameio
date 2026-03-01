@@ -134,7 +134,7 @@ export default function LandingPage() {
           size="lg"
           className="px-16 text-lg h-14 rounded-xl font-semibold tracking-wide"
         >
-          <Link href="/">Get started</Link>
+          <Link href="/kyc">Get started</Link>
         </Button>
       </div>
     </main>

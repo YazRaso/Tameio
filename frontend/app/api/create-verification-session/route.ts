@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2026-02-25.clover",
-});
-
 export async function POST() {
+  const apiKey = process.env.STRIPE_SECRET_KEY;
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "Stripe secret key is not configured" },
+      { status: 500 }
+    );
+  }
+
+  const stripe = new Stripe(apiKey, {
+    apiVersion: "2026-02-25.clover",
+  });
+
   try {
     const session = await stripe.identity.verificationSessions.create({
       type: "document",

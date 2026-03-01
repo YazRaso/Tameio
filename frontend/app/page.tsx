@@ -1,7 +1,23 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { useKyc } from "@/lib/kyc-context";
 
 export default function Home() {
+  const { kyc } = useKyc();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (kyc.status !== "verified") {
+      router.replace("/landing");
+    }
+  }, [kyc.status, router]);
+
+  if (kyc.status !== "verified") return null;
+
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-4">
       <div className="relative flex flex-col items-center gap-6 text-center">
