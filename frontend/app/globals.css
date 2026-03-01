@@ -238,3 +238,42 @@
     transform: translate(-380px, 280px) scale(0.9);
   }
 }
+
+/* ── Metallic gold button variants ── */
+.btn-gold-solid {
+  background: linear-gradient(
+    160deg,
+    #f9e97e 0%,
+    #c8860a 22%,
+    #f5d060 40%,
+    #7a4a00 55%,
+    #e8b84b 68%,
+    #c8860a 80%,
+    #f9e97e 100%
+  );
+  color: oklch(0.07 0 0);
+  box-shadow: 0 1px 18px oklch(0.78 0.14 72 / 0.2);
+}
+.btn-gold-solid:hover:not(:disabled) {
+  opacity: 0.88;
+  box-shadow: 0 1px 28px oklch(0.78 0.14 72 / 0.32);
+}
+
+.btn-gold-outline {
+  border-color: oklch(0.78 0.14 72 / 0.45);
+  color: oklch(0.78 0.14 72);
+  background: transparent;
+}
+.btn-gold-outline:hover:not(:disabled) {
+  border-color: oklch(0.78 0.14 72 / 0.7);
+  background: oklch(0.78 0.14 72 / 0.06);
+}
+
+.btn-gold-ghost {
+  color: oklch(0.78 0.14 72 / 0.75);
+  background: transparent;
+}
+.btn-gold-ghost:hover:not(:disabled) {
+  background: oklch(0.78 0.14 72 / 0.08);
+  color: oklch(0.78 0.14 72);
+}

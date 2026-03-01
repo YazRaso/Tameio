@@ -9,7 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@stripe/stripe-js": "^8.8.0",
     "@unlink-xyz/react": "^0.1.7-canary.7512856",
+    "stripe": "^20.4.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.575.0",

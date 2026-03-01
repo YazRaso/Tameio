@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useWithdraw, useTxStatus, useUnlink } from "@unlink-xyz/react";
+import { usePublicWallet } from "@/lib/public-wallet-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +23,7 @@ type DialogState = "confirm" | "loading" | "success" | "error";
 
 export default function BorrowPage() {
   const { activeAccount } = useUnlink();
+  const { eoaAddress } = usePublicWallet();
   const { withdraw, isPending, isError: isWithdrawError, error: withdrawError, reset: resetWithdraw } = useWithdraw();
 
   const [relayId, setRelayId] = useState<string | null>(null);
@@ -69,19 +71,11 @@ export default function BorrowPage() {
 
     setFetchingRate(true);
     try {
-      // TODO: This endpoint is a dummy value — replace with real backend URL when available
-      const res = await fetch("http://localhost:8000/get_rate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: Number(amount),
-          duration_days: Number(duration),
-        }),
-      });
+      const res = await fetch("http://localhost:8000/rate");
 
       if (!res.ok) throw new Error("Rate engine returned an error");
       const data = await res.json();
-      setQuoteRate(data.rate);
+      setQuoteRate(data.interest_rate_pct);
     } catch {
       // Fallback for dev: show dialog with a placeholder rate
       setQuoteRate(null);
@@ -97,8 +91,13 @@ export default function BorrowPage() {
   }
 
   async function handleAccept() {
+    if (!eoaAddress) {
+      setErrorMessage("Wallet not connected. Please connect your MetaMask or Phantom wallet first.");
+      setDialogState("error");
+      return;
+    }
     if (!activeAccount) {
-      setErrorMessage("Wallet not connected. Please set up your Unlink wallet first.");
+      setErrorMessage("Unlink private account not ready. Please wait a moment and try again.");
       setDialogState("error");
       return;
     }
@@ -110,7 +109,7 @@ export default function BorrowPage() {
       const result = await withdraw([{
         token: USDC_TOKEN,
         amount: amountBigInt,
-        recipient: activeAccount.address as string,
+        recipient: eoaAddress,
       }]);
       if (result?.relayId) {
         setRelayId(result.relayId);

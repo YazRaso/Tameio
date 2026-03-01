@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useDeposit, useTxStatus, useUnlink } from "@unlink-xyz/react";
+import { usePublicWallet } from "@/lib/public-wallet-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +26,7 @@ type DialogState = "confirm" | "loading" | "success" | "error";
 
 export default function DepositPage() {
   const { activeAccount } = useUnlink();
+  const { eoaAddress } = usePublicWallet();
   const { deposit, isPending, isError: isDepositError, error: depositError, reset: resetDeposit } = useDeposit();
 
   const [relayId, setRelayId] = useState<string | null>(null);
@@ -66,8 +68,13 @@ export default function DepositPage() {
   }
 
   async function handleAccept() {
+    if (!eoaAddress) {
+      setErrorMessage("Wallet not connected. Please connect your MetaMask or Phantom wallet first.");
+      setDialogState("error");
+      return;
+    }
     if (!activeAccount) {
-      setErrorMessage("Wallet not connected. Please set up your Unlink wallet first.");
+      setErrorMessage("Unlink private account not ready. Please wait a moment and try again.");
       setDialogState("error");
       return;
     }
@@ -79,7 +86,7 @@ export default function DepositPage() {
       const result = await deposit([{
         token: USDC_TOKEN,
         amount: amountBigInt,
-        depositor: activeAccount.address as string,
+        depositor: eoaAddress,
       }]);
       if (result?.relayId) {
         setRelayId(result.relayId);
