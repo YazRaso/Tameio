@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useDeposit, useUnlink } from "@unlink-xyz/react";
 import { usePublicWallet } from "@/lib/public-wallet-context";
-import { getMetaMask, switchToMonad } from "@/lib/metamask";
+import { getMetaMask, switchToMonad, waitForReceipt } from "@/lib/metamask";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -95,6 +95,13 @@ export default function DepositPage() {
           ...(result.value > BigInt(0) ? { value: `0x${result.value.toString(16)}` } : {}),
         }],
       }) as string;
+
+      // Poll for the receipt — the relay doesn't submit this tx, so we
+      // must check on-chain status ourselves via eth_getTransactionReceipt
+      const receipt = await waitForReceipt(provider, hash);
+      if (receipt.status === "0x0") {
+        throw new Error("Transaction was reverted on-chain.");
+      }
 
       setTxHash(hash);
       setDialogState("success");

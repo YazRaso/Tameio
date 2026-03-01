@@ -27,7 +27,7 @@ export default function BorrowPage() {
   const { withdraw, isPending, isError: isWithdrawError, error: withdrawError, reset: resetWithdraw } = useWithdraw();
 
   const [relayId, setRelayId] = useState<string | null>(null);
-  const { state: txState, txHash: chainTxHash } = useTxStatus(relayId);
+  const { state: txState, txHash: chainTxHash, error: txError } = useTxStatus(relayId);
 
   const [amount, setAmount] = useState("");
   const [duration, setDuration] = useState(""); // in days
@@ -47,16 +47,17 @@ export default function BorrowPage() {
     Number(duration) > 0;
 
   // Sync on-chain status → dialog state
+  // Terminal failure states: "reverted" | "failed" | "dead"
   useEffect(() => {
     if (!relayId) return;
     if (txState === "succeeded") {
       setTxHash(chainTxHash ?? null);
       setDialogState("success");
-    } else if (txState === "failed") {
-      setErrorMessage("Transaction failed on-chain");
+    } else if (txState === "reverted" || txState === "failed" || txState === "dead") {
+      setErrorMessage(txError ?? `Transaction ${txState} on-chain`);
       setDialogState("error");
     }
-  }, [txState, chainTxHash, relayId]);
+  }, [txState, chainTxHash, txError, relayId]);
 
   // Surface withdraw hook errors
   useEffect(() => {
@@ -70,19 +71,23 @@ export default function BorrowPage() {
     if (!isFormValid) return;
 
     setFetchingRate(true);
+    let rate: number;
     try {
       const res = await fetch("http://localhost:8000/rate");
-
-      if (!res.ok) throw new Error("Rate engine returned an error");
+      if (!res.ok) throw new Error(`Rate engine error: ${res.status} ${res.statusText}`);
       const data = await res.json();
-      setQuoteRate(data.interest_rate_pct);
-    } catch {
-      // Fallback for dev: show dialog with a placeholder rate
-      setQuoteRate(null);
+      rate = data.interest_rate_pct;
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : "Failed to fetch rate");
+      setDialogState("error");
+      setDialogOpen(true);
+      setFetchingRate(false);
+      return;
     } finally {
       setFetchingRate(false);
     }
 
+    setQuoteRate(rate);
     setDialogState("confirm");
     setTxHash(null);
     setErrorMessage(null);
@@ -128,8 +133,7 @@ export default function BorrowPage() {
     if (txHash) navigator.clipboard.writeText(txHash);
   }
 
-  const rateDisplay =
-    quoteRate !== null ? `${quoteRate}% APR` : "Pending quote";
+  const rateDisplay = quoteRate !== null ? `${quoteRate}% APR` : "—";
   const isProcessing = isPending || (!!relayId && dialogState === "loading");
 
   return (

@@ -41,6 +41,28 @@ export function getMetaMask(): EthereumProvider | null {
 }
 
 /**
+ * Polls eth_getTransactionReceipt until the transaction is mined.
+ * Resolves with the receipt, or throws if it reverts or times out (~3 min).
+ */
+export async function waitForReceipt(
+  provider: EthereumProvider,
+  txHash: string,
+  intervalMs = 2000,
+  maxAttempts = 90,
+): Promise<{ status: string; transactionHash: string }> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const receipt = (await provider.request({
+      method: "eth_getTransactionReceipt",
+      params: [txHash],
+    })) as { status: string; transactionHash: string } | null;
+
+    if (receipt !== null) return receipt;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  throw new Error("Timed out waiting for transaction confirmation.");
+}
+
+/**
  * Ensures MetaMask is on Monad Testnet.
  * Tries wallet_switchEthereumChain first; if the chain is unknown,
  * falls back to wallet_addEthereumChain.
