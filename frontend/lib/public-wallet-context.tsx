@@ -7,18 +7,7 @@ import {
   useEffect,
   useState,
 } from "react";
-
-// Minimal EIP-1193 provider type
-interface EthereumProvider {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-  on: (event: string, handler: (...args: unknown[]) => void) => void;
-  removeListener: (event: string, handler: (...args: unknown[]) => void) => void;
-}
-
-function getEthereum(): EthereumProvider | null {
-  if (typeof window === "undefined") return null;
-  return (window as Window & { ethereum?: EthereumProvider }).ethereum ?? null;
-}
+import { getMetaMask } from "@/lib/metamask";
 
 interface PublicWalletContextValue {
   eoaAddress: string | null;
@@ -44,7 +33,7 @@ export function PublicWalletProvider({
 
   // On mount: passively check if wallet is already authorised (no prompt)
   useEffect(() => {
-    const provider = getEthereum();
+    const provider = getMetaMask();
     if (!provider) return;
 
     provider
@@ -65,10 +54,10 @@ export function PublicWalletProvider({
   }, []);
 
   const connect = useCallback(async () => {
-    const provider = getEthereum();
+    const provider = getMetaMask();
     if (!provider) {
       alert(
-        "No wallet extension detected. Please install MetaMask or Phantom and refresh."
+        "MetaMask not found. Please install MetaMask and refresh."
       );
       return;
     }

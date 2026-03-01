@@ -27,7 +27,7 @@ export default function BorrowPage() {
   const { withdraw, isPending, isError: isWithdrawError, error: withdrawError, reset: resetWithdraw } = useWithdraw();
 
   const [relayId, setRelayId] = useState<string | null>(null);
-  const { state: txState, txHash: chainTxHash } = useTxStatus(relayId ?? "");
+  const { state: txState, txHash: chainTxHash } = useTxStatus(relayId);
 
   const [amount, setAmount] = useState("");
   const [duration, setDuration] = useState(""); // in days
@@ -276,8 +276,8 @@ export default function BorrowPage() {
                     Transaction Hash
                   </span>
                   <div className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2">
-                    <code className="flex-1 truncate text-xs font-mono text-foreground">
-                      {txHash}
+                    <code className="flex-1 text-xs font-mono text-foreground">
+                      {txHash ? `${txHash.slice(0, 10)}…${txHash.slice(-8)}` : ""}
                     </code>
                     <button
                       onClick={copyHash}
@@ -289,7 +289,7 @@ export default function BorrowPage() {
                 </div>
 
                 <a
-                  href={`https://explorer.monad.xyz/tx/${txHash}`}
+                  href={`https://monad-testnet.socialscan.io/tx/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block text-sm underline-offset-4 hover:underline"

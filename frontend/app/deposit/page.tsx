@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useDeposit, useTxStatus, useUnlink } from "@unlink-xyz/react";
+import { useDeposit, useUnlink } from "@unlink-xyz/react";
 import { usePublicWallet } from "@/lib/public-wallet-context";
+import { getMetaMask, switchToMonad } from "@/lib/metamask";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,8 +17,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-// Today's fixed deposit interest rate — to be filled in later
-const TODAYS_RATE: number | null = null;
+// Today's fixed deposit interest rate
+const TODAYS_RATE: number = 2;
 
 // TODO: Replace with the actual USDC token address on Monad testnet
 const USDC_TOKEN = process.env.NEXT_PUBLIC_USDC_ADDRESS ?? "0x0000000000000000000000000000000000000000";
@@ -29,26 +30,11 @@ export default function DepositPage() {
   const { eoaAddress } = usePublicWallet();
   const { deposit, isPending, isError: isDepositError, error: depositError, reset: resetDeposit } = useDeposit();
 
-  const [relayId, setRelayId] = useState<string | null>(null);
-  const { state: txState, txHash: chainTxHash } = useTxStatus(relayId ?? "");
-
   const [amount, setAmount] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogState, setDialogState] = useState<DialogState>("confirm");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // Sync on-chain status → dialog state
-  useEffect(() => {
-    if (!relayId) return;
-    if (txState === "succeeded") {
-      setTxHash(chainTxHash ?? null);
-      setDialogState("success");
-    } else if (txState === "failed") {
-      setErrorMessage("Transaction failed on-chain");
-      setDialogState("error");
-    }
-  }, [txState, chainTxHash, relayId]);
 
   // Surface deposit hook errors
   useEffect(() => {
@@ -63,7 +49,6 @@ export default function DepositPage() {
     setDialogState("confirm");
     setTxHash(null);
     setErrorMessage(null);
-    setRelayId(null);
     setDialogOpen(true);
   }
 
@@ -83,14 +68,36 @@ export default function DepositPage() {
     try {
       // USDC has 6 decimals
       const amountBigInt = BigInt(Math.round(parseFloat(amount) * 1_000_000));
+
+      // Step 1: Ask the Unlink relay to prepare the deposit
       const result = await deposit([{
         token: USDC_TOKEN,
         amount: amountBigInt,
         depositor: eoaAddress,
       }]);
-      if (result?.relayId) {
-        setRelayId(result.relayId);
-      }
+
+      if (!result) throw new Error("Deposit preparation failed — no result returned.");
+
+      // Step 2: Submit the on-chain transaction via the user's wallet (MetaMask)
+      // deposit() returns {to, calldata, value} — the user must sign and broadcast it
+      const provider = getMetaMask();
+      if (!provider) throw new Error("MetaMask not found. Please install MetaMask.");
+
+      // Ensure we're on Monad Testnet before sending
+      await switchToMonad(provider);
+
+      const hash = await provider.request({
+        method: "eth_sendTransaction",
+        params: [{
+          from: eoaAddress,
+          to: result.to,
+          data: result.calldata,
+          ...(result.value > BigInt(0) ? { value: `0x${result.value.toString(16)}` } : {}),
+        }],
+      }) as string;
+
+      setTxHash(hash);
+      setDialogState("success");
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : "Transaction failed");
       setDialogState("error");
@@ -106,7 +113,7 @@ export default function DepositPage() {
   }
 
   const rateDisplay = TODAYS_RATE !== null ? `${TODAYS_RATE}% APY` : "TBD";
-  const isProcessing = isPending || (!!relayId && dialogState === "loading");
+  const isProcessing = isPending || dialogState === "loading";
 
   return (
     <main className="relative min-h-screen flex flex-col items-center justify-center px-4">
@@ -131,13 +138,10 @@ export default function DepositPage() {
           </p>
         </div>
 
-        {/* Rate badge */}
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
-          <span className="text-sm uppercase tracking-widest text-muted-foreground font-medium">
-            Today&apos;s Rate
-          </span>
-          <span
-            className="ml-auto text-base font-semibold"
+        {/* Rate display */}
+        <div className="space-y-1 text-center">
+          <h2
+            className="text-8xl font-bold tracking-tight"
             style={{
               background: "linear-gradient(160deg, #f9e97e 0%, #c8860a 22%, #f5d060 40%, #7a4a00 55%, #e8b84b 68%, #c8860a 80%, #f9e97e 100%)",
               WebkitBackgroundClip: "text",
@@ -145,8 +149,11 @@ export default function DepositPage() {
               backgroundClip: "text",
             }}
           >
-            {rateDisplay}
-          </span>
+            {TODAYS_RATE !== null ? `${TODAYS_RATE}%` : "TBD"}
+          </h2>
+          <p className="text-sm uppercase tracking-widest text-muted-foreground font-medium">
+            Deposit Rate
+          </p>
         </div>
 
         {/* Amount input */}
@@ -245,8 +252,8 @@ export default function DepositPage() {
                     Transaction Hash
                   </span>
                   <div className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2">
-                    <code className="flex-1 truncate text-xs font-mono text-foreground">
-                      {txHash}
+                    <code className="flex-1 text-xs font-mono text-foreground">
+                      {txHash ? `${txHash.slice(0, 10)}…${txHash.slice(-8)}` : ""}
                     </code>
                     <button
                       onClick={copyHash}
@@ -258,7 +265,7 @@ export default function DepositPage() {
                 </div>
 
                 <a
-                  href={`https://explorer.monad.xyz/tx/${txHash}`}
+                  href={`https://monad-testnet.socialscan.io/tx/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block text-sm underline-offset-4 hover:underline"
