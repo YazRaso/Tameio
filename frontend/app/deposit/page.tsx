@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useDeposit, useUnlink } from "@unlink-xyz/react";
+import { useDeposit, useUnlink, useTxStatus, useInteract, approve, toCall } from "@unlink-xyz/react";
 import { usePublicWallet } from "@/lib/public-wallet-context";
 import { getMetaMask, switchToMonad, waitForReceipt, watchUSDCToken } from "@/lib/metamask";
 import { Button } from "@/components/ui/button";
@@ -20,81 +20,72 @@ import {
 // Today's fixed deposit interest rate
 const TODAYS_RATE: number = 2;
 
-// Fail loudly at runtime if the env var is missing — sending to 0x000...000 is a burn address
 const USDC_TOKEN = process.env.NEXT_PUBLIC_USDC_ADDRESS as string;
 if (!USDC_TOKEN) throw new Error("NEXT_PUBLIC_USDC_ADDRESS is not set in .env.local");
+
+const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS as string;
+if (!VAULT_ADDRESS) throw new Error("NEXT_PUBLIC_VAULT_ADDRESS is not set in .env.local");
 
 type DialogState = "confirm" | "loading" | "success" | "error";
 
 export default function DepositPage() {
-  const { activeAccount } = useUnlink();
   const { eoaAddress } = usePublicWallet();
-  const { deposit, isPending, isError: isDepositError, error: depositError, reset: resetDeposit } = useDeposit();
+  const { walletExists, activeAccount, createWallet, createAccount, ready, waitForConfirmation } = useUnlink();
+  const { deposit: prepareDeposit } = useDeposit();
+  const { interact: interactFn } = useInteract();
 
   const [amount, setAmount] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogState, setDialogState] = useState<DialogState>("confirm");
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [relayId, setRelayId] = useState<string | null>(null);
+  const [loadingStep, setLoadingStep] = useState("Processing…");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Surface deposit hook errors
-  useEffect(() => {
-    if (isDepositError && depositError) {
-      setErrorMessage((depositError as Error).message ?? "Deposit failed");
-      setDialogState("error");
-    }
-  }, [isDepositError, depositError]);
+  const { state: relayState } = useTxStatus(relayId);
 
   function openConfirm() {
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return;
     setDialogState("confirm");
     setTxHash(null);
+    setRelayId(null);
     setErrorMessage(null);
     setDialogOpen(true);
   }
 
   async function handleAccept() {
     if (!eoaAddress) {
-      setErrorMessage("Wallet not connected. Please connect your MetaMask or Phantom wallet first.");
-      setDialogState("error");
-      return;
-    }
-    if (!activeAccount) {
-      setErrorMessage("Unlink private account not ready. Please wait a moment and try again.");
+      setErrorMessage("Wallet not connected. Please connect your MetaMask wallet first.");
       setDialogState("error");
       return;
     }
     setDialogState("loading");
-    resetDeposit();
+    setIsSubmitting(true);
     try {
-      // USDCm on Monad testnet has 18 decimals (NOT 6 like mainnet USDC)
       const amountBigInt = parseTokenAmount(amount, 18);
-
-      // Step 1: Ask the Unlink relay to prepare the deposit transaction
-      const result = await deposit([{
-        token: USDC_TOKEN,
-        amount: amountBigInt,
-        depositor: eoaAddress,
-      }]);
-
-      if (!result) throw new Error("Deposit preparation failed — no result returned.");
 
       const provider = getMetaMask();
       if (!provider) throw new Error("MetaMask not found. Please install MetaMask.");
 
-      // Ensure we're on Monad Testnet before sending
       await switchToMonad(provider);
 
-      // Step 2: Approve the Unlink pool contract to spend the user's USDC.
-      // The deposit calldata calls transferFrom internally — without prior approval it always reverts.
+      // ── Unlink wallet setup ──────────────────────────────────────────────
+      if (ready && !walletExists) await createWallet();
+      if (ready && !activeAccount) await createAccount();
+
+      // ── Step 1: prepare the Unlink deposit (generates ZK proof) ─────────
+      setLoadingStep("Generating ZK proof for deposit…");
+      const result = await prepareDeposit([
+        { token: USDC_TOKEN, amount: amountBigInt, depositor: eoaAddress },
+      ]) as { to: string; calldata: string; value: bigint; relayId: string };
+
+      // ── Step 2: approve Unlink pool to pull USDC from the user's wallet ──
+      setLoadingStep("Awaiting approval signature in MetaMask (1/2)…");
       const approveData = buildApproveCalldata(result.to, amountBigInt);
       const approveHash = await provider.request({
         method: "eth_sendTransaction",
-        params: [{
-          from: eoaAddress,
-          to: USDC_TOKEN,
-          data: approveData,
-        }],
+        params: [{ from: eoaAddress, to: USDC_TOKEN, data: approveData }],
       }) as string;
 
       const approveReceipt = await waitForReceipt(provider, approveHash);
@@ -102,29 +93,56 @@ export default function DepositPage() {
         throw new Error("USDC approval was reverted on-chain. Please try again.");
       }
 
-      // Step 3: Submit the Unlink deposit transaction
-      const hash = await provider.request({
+      // ── Step 3: submit the Unlink deposit transaction ────────────────────
+      setLoadingStep("Awaiting deposit signature in MetaMask (2/2)…");
+      const depositHash = await provider.request({
         method: "eth_sendTransaction",
         params: [{
           from: eoaAddress,
           to: result.to,
           data: result.calldata,
-          ...(result.value > BigInt(0) ? { value: `0x${result.value.toString(16)}` } : {}),
+          value: "0x0",  // ERC-20 deposit — no ETH value
         }],
       }) as string;
 
-      const receipt = await waitForReceipt(provider, hash);
-      if (receipt.status === "0x0") {
+      const depositReceipt = await waitForReceipt(provider, depositHash);
+      if (depositReceipt.status === "0x0") {
         throw new Error("Deposit transaction was reverted on-chain.");
       }
 
-      setTxHash(hash);
+      setTxHash(depositHash);
+
+      // ── Step 4: wait for Unlink relay to credit the pool balance ─────────
+      // The relay watches the chain, detects the deposit TX, and updates the
+      // user's private note balance. We must wait before calling interact.
+      setLoadingStep("Waiting for Unlink relay to credit pool balance…");
+      await waitForConfirmation(result.relayId, { timeout: 120_000 });
+
+      // ── Step 5: interact — atomically spend from pool → TameioVault ─────
+      // The adapter unshields amountBigInt USDC, executes:
+      //   1. approve(TameioVault, amount)
+      //   2. vault.deposit(amount)  ← vault pulls via transferFrom
+      // receive minAmount=0n: vault consumed all USDC so nothing reshields back.
+      setLoadingStep("Bridging funds into TameioVault via private relay…");
+      const approveVaultCall = approve(USDC_TOKEN, VAULT_ADDRESS, amountBigInt);
+      const vaultDepositCall = toCall({
+        to: VAULT_ADDRESS,
+        data: buildDepositCalldata(amountBigInt),
+      });
+      const interactResult = await interactFn({
+        spend: [{ token: USDC_TOKEN, amount: amountBigInt }],
+        calls: [approveVaultCall, vaultDepositCall],
+        receive: [{ token: USDC_TOKEN, minAmount: 0n }],
+      }) as { relayId: string };
+
+      setRelayId(interactResult.relayId);
       setDialogState("success");
-      // Prompt MetaMask to track USDCm balance (no-op if already watching)
       watchUSDCToken(provider);
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : "Transaction failed");
       setDialogState("error");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -137,7 +155,7 @@ export default function DepositPage() {
   }
 
   const rateDisplay = TODAYS_RATE !== null ? `${TODAYS_RATE}% APY` : "TBD";
-  const isProcessing = isPending || dialogState === "loading";
+  const isProcessing = isSubmitting || dialogState === "loading";
 
   return (
     <main className="relative min-h-screen flex flex-col items-center justify-center px-4">
@@ -245,7 +263,7 @@ export default function DepositPage() {
             <div className="flex flex-col items-center gap-4 py-8">
               <Spinner />
               <p className="text-base text-muted-foreground">
-                {isPending ? "Generating proof…" : "Waiting for on-chain confirmation…"}
+                {loadingStep}
               </p>
             </div>
           )}
@@ -265,12 +283,15 @@ export default function DepositPage() {
                   Deposit Confirmed
                 </DialogTitle>
                 <DialogDescription className="text-muted-foreground">
-                  Your deposit was processed successfully.
+                  Your USDC was privately deposited into the Unlink pool.
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-3 py-2">
                 <Row label="Amount" value={`${amount} USDC`} />
+                {relayState && (
+                  <Row label="Relay Status" value={relayState} />
+                )}
                 <div className="space-y-1">
                   <span className="text-sm text-muted-foreground uppercase tracking-wider">
                     Transaction Hash
@@ -388,3 +409,15 @@ function buildApproveCalldata(spender: string, amount: bigint): string {
   const amt = amount.toString(16).padStart(64, "0");
   return `0x${sel}${addr}${amt}`;
 }
+
+/**
+ * ABI-encode a TameioVault deposit(uint256) call.
+ * selector = keccak256("deposit(uint256)")[0:4] = 0xb6b55f25
+ * Used by the useInteract adapter call (step 5 — pool → vault).
+ */
+function buildDepositCalldata(amount: bigint): string {
+  const sel = "b6b55f25";
+  const amt = amount.toString(16).padStart(64, "0");
+  return `0x${sel}${amt}`;
+}
+

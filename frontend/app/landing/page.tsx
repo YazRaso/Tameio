@@ -54,7 +54,8 @@ export default function LandingPage() {
               width: 480,
               height: 480,
               borderRadius: "50%",
-              background: "radial-gradient(ellipse, oklch(0.78 0.14 72 / 0.08) 0%, transparent 70%)",
+              background:
+                "radial-gradient(ellipse, oklch(0.78 0.14 72 / 0.08) 0%, transparent 70%)",
               filter: "blur(40px)",
               pointerEvents: "none",
             }}
@@ -77,19 +78,23 @@ export default function LandingPage() {
             </h3>
 
             <p className="text-lg text-muted-foreground leading-relaxed">
-              Historically, blockchains have not had the ability to scale and
-              support banking-grade systems. Throughput was too low, regulation
-              was ambiguous, and financial privacy on a public ledger was
-              structurally impossible. Those three obstacles kept on-chain
-              banking in the domain of whitepapers.
+              A banking system needs to be able to sustain thousands of
+              transactions per second, provide strong privacy guarantees, and
+              comply with financial regulation. While a few blockchains have the
+              ability to sustain that level of throughput, and private
+              blockchains are not a new invention, the combination of these two
+              capabilites with the change in regulatory landscape over the past
+              few months is what makes Tameio possible now.
             </p>
 
             <p className="text-lg text-muted-foreground leading-relaxed mt-4">
-              That's no longer true. Monad delivers 10,000 TPS with sub-second
-              finality. Stablecoin legislation is being signed into law. And
-              privacy-preserving infrastructure has matured enough to meet
-              regulatory requirements. Tameio exists because the conditions for
-              a real on-chain bank finally do.
+              Monad delivers 10,000 TPS with sub-second finality (0.4s).
+              Stablecoin legislation is being signed into law. And
+              privacy-preserving infrastructure, like unlink, allows us to meet
+              regulatory privacy requirements in a few lines of coin while still
+              leveraging the capability of a scalable blockchain. Tameio exists
+              because the conditions for a real on-chain banking system finally
+              do.
             </p>
           </div>
         </div>

@@ -41,22 +41,28 @@ export function getMetaMask(): EthereumProvider | null {
 }
 
 /**
- * Polls eth_getTransactionReceipt until the transaction is mined.
- * Resolves with the receipt, or throws if it reverts or times out (~3 min).
+ * Polls eth_getTransactionReceipt via the /api/receipt Next.js proxy.
+ * The proxy calls the Alchemy RPC server-side, avoiding browser CORS / 404
+ * issues with the Monad public RPC endpoint.
  */
 export async function waitForReceipt(
-  provider: EthereumProvider,
+  _provider: EthereumProvider,
   txHash: string,
-  intervalMs = 2000,
-  maxAttempts = 90,
+  intervalMs = 1500,
+  maxAttempts = 120,
 ): Promise<{ status: string; transactionHash: string }> {
   for (let i = 0; i < maxAttempts; i++) {
-    const receipt = (await provider.request({
-      method: "eth_getTransactionReceipt",
-      params: [txHash],
-    })) as { status: string; transactionHash: string } | null;
-
-    if (receipt !== null) return receipt;
+    try {
+      const res = await fetch(`/api/receipt?hash=${encodeURIComponent(txHash)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.result !== null && json.result !== undefined) {
+          return json.result as { status: string; transactionHash: string };
+        }
+      }
+    } catch {
+      // swallow transient errors and keep polling
+    }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
   throw new Error("Timed out waiting for transaction confirmation.");

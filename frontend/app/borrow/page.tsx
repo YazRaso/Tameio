@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useUnlink } from "@unlink-xyz/react";
 import { usePublicWallet } from "@/lib/public-wallet-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,22 +15,21 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-// TODO: update port/base URL once the rate engine is deployed to a real host
 const RATE_ENGINE_URL = "http://localhost:8000";
 
 type DialogState = "confirm" | "loading" | "success" | "error";
 
 export default function BorrowPage() {
-  const { activeAccount } = useUnlink();
   const { eoaAddress } = usePublicWallet();
 
   const [amount, setAmount] = useState("");
-  const [duration, setDuration] = useState(""); // in days
+  const [duration, setDuration] = useState("");
   const [quoteRate, setQuoteRate] = useState<number | null>(null);
   const [fetchingRate, setFetchingRate] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogState, setDialogState] = useState<DialogState>("confirm");
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [loadingStep, setLoadingStep] = useState("Processing…");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -77,26 +75,18 @@ export default function BorrowPage() {
       setDialogState("error");
       return;
     }
-    if (!activeAccount) {
-      setErrorMessage("Unlink private account not ready. Please wait a moment and try again.");
-      setDialogState("error");
-      return;
-    }
     setDialogState("loading");
     setIsSubmitting(true);
     try {
-      // USDCm on Monad testnet has 18 decimals — send as string to avoid JS BigInt serialization issues
       const amountBigInt = parseTokenAmount(amount, 18);
 
-      // Backend calls releaseToBorrower(borrower, amount) on TameioVault using the owner key.
-      // useWithdraw cannot be used here — it only withdraws from the user's OWN Unlink pool
-      // balance, which a borrower does not have. The vault pushes funds outward via the backend.
+      setLoadingStep("Requesting loan from Tameio…");
       const res = await fetch(`${RATE_ENGINE_URL}/borrow`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           borrower: eoaAddress,
-          amount: amountBigInt.toString(), // string avoids Number precision loss on 18-decimal values
+          amount: amountBigInt.toString(),
           duration_days: parseInt(duration, 10),
         }),
       });
@@ -108,8 +98,8 @@ export default function BorrowPage() {
 
       const data = await res.json();
       setTxHash(data.tx_hash);
-      // Use the rate the backend actually approved (may differ slightly from quote)
       if (typeof data.interest_rate_pct === "number") setQuoteRate(data.interest_rate_pct);
+
       setDialogState("success");
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : "Transaction failed");
@@ -241,7 +231,7 @@ export default function BorrowPage() {
             <div className="flex flex-col items-center gap-4 py-8">
               <Spinner />
               <p className="text-base text-muted-foreground">
-                Processing loan… waiting for on-chain confirmation
+                {loadingStep}
               </p>
             </div>
           )}
@@ -261,7 +251,7 @@ export default function BorrowPage() {
                   Loan Confirmed
                 </DialogTitle>
                 <DialogDescription className="text-muted-foreground">
-                  Your loan was approved and funds are on their way.
+                  Your loan was approved and funds are privately shielded in your Unlink balance.
                 </DialogDescription>
               </DialogHeader>
 
@@ -364,16 +354,9 @@ function Spinner() {
   );
 }
 
-// ── Token amount helpers ──────────────────────────────────────────────────────
-
-/**
- * Parse a human-readable decimal string into a BigInt with `decimals` precision.
- * Avoids float arithmetic — "1.5" with decimals=18 → 1_500_000_000_000_000_000n
- */
 function parseTokenAmount(value: string, decimals: number): bigint {
   const [whole = "0", frac = ""] = value.split(".");
   const fracPadded = frac.slice(0, decimals).padEnd(decimals, "0");
-  // Build 10^decimals as a string to avoid BigInt literal / ** operator (requires ES2020+)
   const multiplier = BigInt("1" + "0".repeat(decimals));
   return BigInt(whole) * multiplier + BigInt(fracPadded);
 }
