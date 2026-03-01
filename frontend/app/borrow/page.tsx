@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-const RATE_ENGINE_URL = "http://localhost:8000";
+const RATE_ENGINE_URL = "https://tameio-jv65-backend.vercel.app";
 
 type DialogState = "confirm" | "loading" | "success" | "error";
 
