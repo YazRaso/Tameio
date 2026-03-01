@@ -33,6 +33,7 @@ pragma solidity ^0.8.28;
 interface IERC20 {
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
     function transfer(address to, uint256 amount) external returns (bool);
+    function approve(address spender, uint256 amount) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
 }
 
@@ -145,6 +146,47 @@ contract TameioVault {
         totalBorrowed += amount;
 
         require(usdc.transfer(borrower, amount), "TameioVault: USDC transfer to borrower failed");
+
+        emit ReleasedToBorrower(borrower, amount);
+    }
+
+    /**
+     * @notice Release USDC directly into the Unlink privacy pool on behalf of a borrower.
+     * @dev    Called by the owner with ZK deposit calldata pre-computed by the borrower's
+     *         browser. The vault approves `poolAddress` for `amount`, then executes
+     *         `poolCalldata` (which encodes pool.deposit(vaultAddress, notes, ciphertexts)).
+     *         USDC moves: vault → Unlink pool directly — borrower's EOA is never touched.
+     * @param  borrower     Wallet address of the approved borrower (for debt tracking).
+     * @param  amount       Amount of USDC to send (18-decimal units matching USDCm).
+     * @param  poolAddress  Address of the Unlink pool contract.
+     * @param  poolCalldata ABI-encoded pool.deposit(...) call with ZK note commitments.
+     */
+    function releaseToBorrowerPrivate(
+        address borrower,
+        uint256 amount,
+        address poolAddress,
+        bytes calldata poolCalldata
+    ) external onlyOwner {
+        require(borrower != address(0), "TameioVault: zero address");
+        require(amount > 0, "TameioVault: amount must be > 0");
+        require(poolAddress != address(0), "TameioVault: zero pool address");
+        require(usdc.balanceOf(address(this)) >= amount, "TameioVault: insufficient vault liquidity");
+
+        // Track outstanding debt before external calls.
+        borrowerDebt[borrower] += amount;
+        totalBorrowed += amount;
+
+        // Approve the Unlink pool to pull `amount` USDC from this vault.
+        require(usdc.approve(poolAddress, amount), "TameioVault: approve failed");
+
+        // Execute the pre-computed pool deposit calldata.
+        // The calldata encodes pool.deposit(address(this), notes, ciphertexts)
+        // so the pool calls transferFrom(vault, pool, amount) internally.
+        (bool success, ) = poolAddress.call(poolCalldata);
+        require(success, "TameioVault: Unlink pool deposit failed");
+
+        // Reset approval to zero as a safety measure after the call.
+        usdc.approve(poolAddress, 0);
 
         emit ReleasedToBorrower(borrower, amount);
     }

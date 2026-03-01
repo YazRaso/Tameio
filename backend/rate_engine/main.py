@@ -19,6 +19,7 @@ import math
 import os
 import random
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -79,12 +80,16 @@ class BorrowRequest(BaseModel):
     borrower: str = Field(description="Borrower's EOA address (0x…)")
     amount: str = Field(description="Loan amount in USDCm base units (18 decimals) as a string, e.g. '1000000000000000000' = 1 USDCm")
     duration_days: int = Field(description="Loan duration in days")
+    # Private disbursement via Unlink pool (optional — falls back to direct EOA transfer)
+    pool_address: Optional[str] = Field(default=None, description="Unlink pool address for vault→pool direct deposit")
+    pool_calldata: Optional[str] = Field(default=None, description="Hex-encoded pool.deposit(...) calldata with ZK note commitments")
 
 
 class BorrowResponse(BaseModel):
-    tx_hash: str = Field(description="On-chain transaction hash of the releaseToBorrower call")
+    tx_hash: str = Field(description="On-chain transaction hash of the release call")
     interest_rate_pct: float = Field(description="Approved annualised interest rate in %")
     fico_score: float
+    private: bool = Field(description="True if funds were routed vault→Unlink pool (no EOA exposure)")
     message: str
 
 
@@ -176,40 +181,87 @@ def execute_borrow(req: BorrowRequest):
     try:
         nonce = w3.eth.get_transaction_count(owner_account.address)
 
-        # Estimate gas with a 60% buffer to cover cold storage slots on Monad.
-        # releaseToBorrower writes to a new borrowerDebt[borrower] slot on first call
-        # (22,100 gas cold SSTORE) plus the onlyOwner modifier's cold SLOAD — this
-        # pushes past 120k. We estimate then pad rather than hardcode.
-        try:
-            estimated = vault.functions.releaseToBorrower(
-                borrower_checksum, amount_int
-            ).estimate_gas({"from": owner_account.address})
-            gas_limit = int(estimated * 1.6)
-        except Exception:
-            gas_limit = 400_000  # safe fallback if estimation itself fails
+        use_private = bool(req.pool_address and req.pool_calldata)
 
-        tx = vault.functions.releaseToBorrower(
-            borrower_checksum,
-            amount_int,
-        ).build_transaction({
-            "from": owner_account.address,
-            "nonce": nonce,
-            "gas": gas_limit,
-            "gasPrice": w3.eth.gas_price,
-            "chainId": 10143,  # Monad Testnet
-        })
+        if use_private:
+            # ── Private path: vault → Unlink pool directly, zero EOA exposure ──
+            pool_addr = Web3.to_checksum_address(req.pool_address)
+            # Accept calldata as hex string with or without 0x prefix
+            calldata_bytes = bytes.fromhex(req.pool_calldata.removeprefix("0x"))
+
+            fn = vault.functions.releaseToBorrowerPrivate(
+                borrower_checksum, amount_int, pool_addr, calldata_bytes
+            )
+
+            # Dry-run first — surfaces revert reason before wasting a tx.
+            try:
+                fn.call({"from": owner_account.address})
+            except Exception as sim_exc:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Simulation failed (revert reason): {sim_exc}",
+                ) from sim_exc
+
+            try:
+                estimated = fn.estimate_gas({"from": owner_account.address})
+                # ZK proof verification is expensive; pad generously.
+                gas_limit = int(estimated * 1.8)
+            except Exception:
+                gas_limit = 2_000_000  # ZK proof + approve + pool call
+
+            tx = fn.build_transaction({
+                "from": owner_account.address,
+                "nonce": nonce,
+                "gas": gas_limit,
+                "gasPrice": w3.eth.gas_price,
+                "chainId": 10143,
+            })
+        else:
+            # ── Legacy path: vault → borrower EOA (backward compat) ──────────
+            fn_legacy = vault.functions.releaseToBorrower(borrower_checksum, amount_int)
+
+            # Dry-run first.
+            try:
+                fn_legacy.call({"from": owner_account.address})
+            except Exception as sim_exc:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Simulation failed (revert reason): {sim_exc}",
+                ) from sim_exc
+
+            try:
+                estimated = fn_legacy.estimate_gas({"from": owner_account.address})
+                gas_limit = int(estimated * 1.6)
+            except Exception:
+                gas_limit = 400_000
+
+            tx = fn_legacy.build_transaction({
+                "from": owner_account.address,
+                "nonce": nonce,
+                "gas": gas_limit,
+                "gasPrice": w3.eth.gas_price,
+                "chainId": 10143,
+            })
+
         signed = owner_account.sign_transaction(tx)
-        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
+        raw_tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        tx_hash = w3.to_hex(raw_tx_hash)  # always 0x-prefixed
+        receipt = w3.eth.wait_for_transaction_receipt(raw_tx_hash, timeout=60)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"On-chain transaction failed: {exc}") from exc
 
     if receipt.status != 1:
-        raise HTTPException(status_code=500, detail="Transaction was reverted on-chain.")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Transaction reverted on-chain. Hash: {tx_hash}",
+        )
 
     return BorrowResponse(
-        tx_hash=tx_hash.hex(),
+        tx_hash=tx_hash,
         interest_rate_pct=rate,
         fico_score=score,
-        message=f"Loan of {amount_int / 10**18:.4f} USDCm disbursed at {rate:.2f}% APR.",
+        private=use_private,
+        message=f"Loan of {amount_int / 10**18:.4f} USDCm disbursed {'privately via Unlink' if use_private else 'to EOA'} at {rate:.2f}% APR.",
     )

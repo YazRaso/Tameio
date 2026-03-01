@@ -100,6 +100,46 @@
 			"label": "Verify main.py",
 			"type": "shell",
 			"command": "cd backend/rate_engine && source .venv/bin/activate && python3 -c \"import main; print('main.py syntax OK')\""
+		},
+		{
+			"label": "hardhat compile",
+			"type": "shell",
+			"command": "cd backend && npx hardhat compile"
+		},
+		{
+			"label": "deploy contract",
+			"type": "shell",
+			"command": "cd backend && npx hardhat run scripts/deploy.ts --network monad_testnet"
+		},
+		{
+			"label": "Deploy TameioVault",
+			"type": "shell",
+			"command": "cd backend && npx hardhat run scripts/deploy.ts --network monadTestnet"
+		},
+		{
+			"label": "Deploy TameioVault Full",
+			"type": "shell",
+			"command": "cd backend && npx hardhat run scripts/deploy.ts --network monadTestnet 2>&1 | tee /tmp/deploy_out.txt && echo '---DONE---' && cat /tmp/deploy_out.txt"
+		},
+		{
+			"label": "Seed TameioVault",
+			"type": "shell",
+			"command": "cd backend && npx hardhat run scripts/seed.ts --network monadTestnet 2>&1"
+		},
+		{
+			"label": "Seed TameioVault Small",
+			"type": "shell",
+			"command": "cd backend && SEED_AMOUNT_USDC=10 npx hardhat run scripts/seed.ts --network monadTestnet 2>&1 | head -40"
+		},
+		{
+			"label": "Seed TameioVault 100",
+			"type": "shell",
+			"command": "cd backend && npx hardhat run scripts/seed.ts --network monadTestnet 2>&1"
+		},
+		{
+			"label": "TS Check Borrow",
+			"type": "shell",
+			"command": "cd frontend && npx tsc --noEmit 2>&1"
 		}
 	]
 }
